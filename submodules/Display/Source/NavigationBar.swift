@@ -122,10 +122,6 @@ public func navigationBarBackArrowImage(color: UIColor) -> UIImage? {
     }
 }
 
-public protocol NavigationButtonCustomDisplayNode {
-    var isHighlightable: Bool { get }
-}
-
 public protocol NavigationButtonNode: ASDisplayNode {
     func updateManualAlpha(alpha: CGFloat, transition: ContainedViewLayoutTransition)
     var mainContentNode: ASDisplayNode? { get }

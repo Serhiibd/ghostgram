@@ -82,16 +82,19 @@ private final class AccountPresenceManagerImpl {
     ///   2. Ghost Mode hide online status → skip update entirely (freeze last-seen)
     ///   3. Default app behaviour (wasOnline)
     private func refreshPresence() {
-        let alwaysOnline = MiscSettingsManager.shared.shouldAlwaysBeOnline
+        // Use raw alwaysOnline flag (not shouldAlwaysBeOnline) so it works independently
+        // of the Misc master toggle. Ghost Mode's shouldHideOnlineStatus already checks
+        // !MiscSettingsManager.shared.alwaysOnline internally.
+        let alwaysOnline = MiscSettingsManager.shared.alwaysOnline
         let ghostHideOnline = GhostModeManager.shared.shouldHideOnlineStatus
         
         if alwaysOnline {
             // Always Online wins — push online regardless of Ghost Mode
             sendPresenceUpdate(online: true)
         } else if ghostHideOnline {
-            // Ghost Mode active, no Always Online — freeze presence (don't send anything)
-            self.onlineTimer?.invalidate()
-            self.onlineTimer = nil
+            // Ghost Mode active: actively send offline so the server immediately
+            // hides our last-seen instead of keeping the stale "online" status.
+            sendPresenceUpdate(online: false)
         } else {
             // Normal mode — follow the app-level state
             sendPresenceUpdate(online: wasOnline)

@@ -2056,6 +2056,10 @@ public final class ChatHistoryListNodeImpl: ListView, ChatHistoryNode, ChatHisto
                         }
                     }
                 }
+                // GHOSTGRAM: Bypass copy protection if enabled in Misc settings
+                if MiscSettingsManager.shared.shouldBypassCopyProtection {
+                    isCopyProtectionEnabled = false
+                }
                 let alwaysDisplayTranscribeButton = ChatMessageItemAssociatedData.DisplayTranscribeButton(
                     canBeDisplayed: suggestAudioTranscription.0 < 2,
                     displayForNotConsumed: suggestAudioTranscription.1,
@@ -2102,7 +2106,8 @@ public final class ChatHistoryListNodeImpl: ListView, ChatHistoryNode, ChatHisto
                     selectedMessages: selectedMessages,
                     presentationData: chatPresentationData,
                     historyAppearsCleared: historyAppearsCleared,
-                    skipViewOnceMedia: mode != .bubbles,
+                    // GHOSTGRAM: Keep view-once media visible if bypass is enabled
+                    skipViewOnceMedia: MiscSettingsManager.shared.shouldDisableViewOnceAutoDelete ? false : (mode != .bubbles),
                     pendingUnpinnedAllMessages: pendingUnpinnedAllMessages,
                     pendingRemovedMessages: pendingRemovedMessages,
                     associatedData: associatedData,
@@ -2110,8 +2115,9 @@ public final class ChatHistoryListNodeImpl: ListView, ChatHistoryNode, ChatHisto
                     customChannelDiscussionReadState: customChannelDiscussionReadState,
                     customThreadOutgoingReadState: customThreadOutgoingReadState,
                     cachedData: data.cachedData,
-                    adMessage: allAdMessages.fixed,
-                    dynamicAdMessages: allAdMessages.opportunistic
+                    // GHOSTGRAM: Block ads if enabled in Misc settings
+                    adMessage: MiscSettingsManager.shared.shouldBlockAds ? nil : allAdMessages.fixed,
+                    dynamicAdMessages: MiscSettingsManager.shared.shouldBlockAds ? [] : allAdMessages.opportunistic
                 )
                 let lastHeaderId = filteredEntries.last.flatMap { listMessageDateHeaderId(timestamp: $0.index.timestamp) } ?? 0
                 let processedView = ChatHistoryView(originalView: view, filteredEntries: filteredEntries, associatedData: associatedData, lastHeaderId: lastHeaderId, id: id, locationInput: update.2, ignoreMessagesInTimestampRange: update.3, ignoreMessageIds: update.4)

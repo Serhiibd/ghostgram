@@ -11,6 +11,7 @@ public final class AntiDeleteManager {
     private let defaults = UserDefaults.standard
     private let enabledKey = "antiDelete.enabled"
     private let archiveMediaKey = "antiDelete.archiveMedia"
+    private let deletedMessageTransparencyKey = "antiDelete.deletedMessageTransparency"
     private let archiveKey = "antiDelete.archive"
     private let deletedIdsKey = "antiDelete.deletedIds"
     
@@ -24,6 +25,33 @@ public final class AntiDeleteManager {
     public var archiveMedia: Bool {
         get { defaults.bool(forKey: archiveMediaKey) }
         set { defaults.set(newValue, forKey: archiveMediaKey) }
+    }
+    
+    /// Минимальное значение прозрачности удалённого сообщения
+    public static let minDeletedMessageTransparency: Double = 0.0
+    
+    /// Максимальное значение прозрачности удалённого сообщения
+    public static let maxDeletedMessageTransparency: Double = 0.8
+    
+    /// Значение прозрачности удалённого сообщения по умолчанию
+    public static let defaultDeletedMessageTransparency: Double = 0.45
+    
+    /// Прозрачность удалённых сообщений (0.0 = непрозрачно, 0.8 = максимально прозрачно)
+    public var deletedMessageTransparency: Double {
+        get {
+            let value = defaults.object(forKey: deletedMessageTransparencyKey) as? NSNumber
+            let resolvedValue = value?.doubleValue ?? Self.defaultDeletedMessageTransparency
+            return max(Self.minDeletedMessageTransparency, min(Self.maxDeletedMessageTransparency, resolvedValue))
+        }
+        set {
+            let clampedValue = max(Self.minDeletedMessageTransparency, min(Self.maxDeletedMessageTransparency, newValue))
+            defaults.set(clampedValue, forKey: deletedMessageTransparencyKey)
+        }
+    }
+    
+    /// Альфа для отображения удалённых сообщений
+    public var deletedMessageDisplayAlpha: Double {
+        return 1.0 - self.deletedMessageTransparency
     }
     
     // MARK: - Deleted Message IDs Storage
@@ -119,6 +147,9 @@ public final class AntiDeleteManager {
         }
         if defaults.object(forKey: archiveMediaKey) == nil {
             defaults.set(true, forKey: archiveMediaKey)
+        }
+        if defaults.object(forKey: deletedMessageTransparencyKey) == nil {
+            defaults.set(Self.defaultDeletedMessageTransparency, forKey: deletedMessageTransparencyKey)
         }
         loadArchive()
         loadDeletedIds()

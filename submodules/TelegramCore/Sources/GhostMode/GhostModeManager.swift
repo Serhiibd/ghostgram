@@ -23,9 +23,6 @@ public final class GhostModeManager {
     
     private let defaults = UserDefaults.standard
     
-    // Prevents recursive mutual-exclusion calls
-    private var isApplyingMutualExclusion = false
-    
     // MARK: - Properties
     
     /// Master toggle for Ghost Mode.
@@ -34,11 +31,9 @@ public final class GhostModeManager {
         get { defaults.bool(forKey: Keys.isEnabled) }
         set {
             defaults.set(newValue, forKey: Keys.isEnabled)
-            if newValue && !isApplyingMutualExclusion {
-                // Ghost Mode ON → disable Always Online
-                isApplyingMutualExclusion = true
+            if newValue {
+                // Ghost Mode ON → disable Always Online so they don't coexist in UI
                 MiscSettingsManager.shared.disableAlwaysOnlineForMutualExclusion()
-                isApplyingMutualExclusion = false
             }
             notifySettingsChanged()
         }
@@ -102,9 +97,11 @@ public final class GhostModeManager {
     }
     
     /// Online status is hidden only when Ghost Mode is on AND Always Online is NOT active.
+    /// Checks alwaysOnline raw value (not shouldAlwaysBeOnline) so ghost mode works
+    /// even when the Misc master toggle is off.
     public var shouldHideOnlineStatus: Bool {
         guard isEnabled && hideOnlineStatus else { return false }
-        return !MiscSettingsManager.shared.shouldAlwaysBeOnline
+        return !MiscSettingsManager.shared.alwaysOnline
     }
     
     public var shouldHideTypingIndicator: Bool {
@@ -114,7 +111,7 @@ public final class GhostModeManager {
     /// Force offline only when Ghost Mode is on AND Always Online is NOT active.
     public var shouldForceOffline: Bool {
         guard isEnabled && forceOffline else { return false }
-        return !MiscSettingsManager.shared.shouldAlwaysBeOnline
+        return !MiscSettingsManager.shared.alwaysOnline
     }
     
     /// Count of active features (e.g., "5/5")
@@ -130,17 +127,6 @@ public final class GhostModeManager {
     
     /// Total number of features
     public static let totalFeatureCount = 5
-    
-    // MARK: - Internal mutual exclusion (called by MiscSettingsManager)
-    
-    /// Called by MiscSettingsManager when Always Online is turned on.
-    /// Disables Ghost Mode without triggering mutual exclusion back.
-    public func disableForMutualExclusion() {
-        isApplyingMutualExclusion = true
-        defaults.set(false, forKey: Keys.isEnabled)
-        notifySettingsChanged()
-        isApplyingMutualExclusion = false
-    }
     
     // MARK: - Initialization
     

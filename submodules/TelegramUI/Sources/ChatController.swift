@@ -146,7 +146,6 @@ import ChatTextInputPanelNode
 import ChatInputAccessoryPanel
 import GlobalControlPanelsContext
 import ChatSearchNavigationContentNode
-import ChatAgeRestrictionAlertController
 
 public final class ChatControllerOverlayPresentationData {
     public let expandData: (ASDisplayNode?, () -> Void)
@@ -830,7 +829,7 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
             return true
         }
         
-        let controllerInteraction = ChatControllerInteraction(openMessage: { [weak self] message, params in
+        let openMessage: (Message, OpenMessageParams) -> Bool = { [weak self] message, params in
             guard let self, self.isNodeLoaded, let message = self.chatDisplayNode.historyNode.messageInCurrentHistoryView(message.id) else {
                 return false
             }
@@ -1566,7 +1565,9 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
             self.controllerInteraction?.isOpeningMediaSignal = openChatMessageParams.blockInteraction.get()
             
             return context.sharedContext.openChatMessage(openChatMessageParams)
-        }, openPeer: { [weak self] peer, navigation, fromMessage, source in
+        }
+        
+        let openPeer: (EnginePeer, ChatControllerInteractionNavigateToPeer, MessageReference?, ChatControllerInteraction.OpenPeerSource) -> Void = { [weak self] peer, navigation, fromMessage, source in
             var expandAvatar = false
             if case let .groupParticipant(storyStats, avatarHeaderNode) = source {
                 if let storyStats, storyStats.totalCount != 0, let avatarHeaderNode = avatarHeaderNode as? ChatMessageAvatarHeaderNodeImpl {
@@ -1581,20 +1582,28 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
                 fromReactionMessageId = fromMessage?.id
             }
             self?.openPeer(peer: peer, navigation: navigation, fromMessage: fromMessage, fromReactionMessageId: fromReactionMessageId, expandAvatar: expandAvatar)
-        }, openPeerMention: { [weak self] name, progress in
+        }
+        
+        let openPeerMention: (String, Promise<Bool>?) -> Void = { [weak self] name, progress in
             self?.openPeerMention(name, progress: progress)
-        }, openMessageContextMenu: { [weak self] message, selectAll, node, frame, anyRecognizer, location in
+        }
+        
+        let openMessageContextMenu: (Message, Bool, ASDisplayNode, CGRect, UIGestureRecognizer?, CGPoint?) -> Void = { [weak self] message, selectAll, node, frame, anyRecognizer, location in
             guard let self, self.isNodeLoaded else {
                 return
             }
             self.openMessageContextMenu(message: message, selectAll: selectAll, node: node, frame: frame, anyRecognizer: anyRecognizer, location: location)
-        }, openMessageReactionContextMenu: { [weak self] message, sourceView, gesture, value in
+        }
+        
+        let openMessageReactionContextMenu: (Message, ContextExtractedContentContainingView, ContextGesture?, MessageReaction.Reaction) -> Void = { [weak self] message, sourceView, gesture, value in
             guard let self else {
                 return
             }
             
             self.openMessageReactionContextMenu(message: message, sourceView: sourceView, gesture: gesture, value: value)
-        }, updateMessageReaction: { [weak self] initialMessage, reaction, force, sourceView in
+        }
+        
+        let updateMessageReaction: (Message, ChatControllerInteractionReaction, Bool, ContextExtractedContentContainingView?) -> Void = { [weak self] initialMessage, reaction, force, sourceView in
             guard let strongSelf = self else {
                 return
             }
@@ -2062,7 +2071,16 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
                     }
                 }
             })
-        }, activateMessagePinch: { [weak self] sourceNode in
+        }
+        
+        let controllerInteraction = ChatControllerInteraction(
+            openMessage: openMessage,
+            openPeer: openPeer,
+            openPeerMention: openPeerMention,
+            openMessageContextMenu: openMessageContextMenu,
+            openMessageReactionContextMenu: openMessageReactionContextMenu,
+            updateMessageReaction: updateMessageReaction,
+            activateMessagePinch: { [weak self] sourceNode in
             guard let strongSelf = self else {
                 return
             }

@@ -232,20 +232,34 @@ final class AffiliateProgramSetupScreenComponent: Component {
                 )
             ))
             
-            let tableItems: [TableComponent.Item] = [
-                TableComponent.Item(id: 0, title: environment.strings.AffiliateSetup_AlertApply_SectionCommission, component: AnyComponent(MultilineTextComponent(
-                    text: .plain(NSAttributedString(string: commissionTitle, font: Font.regular(15.0), textColor: environment.theme.actionSheet.primaryTextColor))
-                ))),
-                TableComponent.Item(id: 1, title: environment.strings.AffiliateSetup_AlertApply_SectionDuration, component: AnyComponent(MultilineTextComponent(
-                    text: .plain(NSAttributedString(string: durationTitle, font: Font.regular(15.0), textColor: environment.theme.actionSheet.primaryTextColor))
-                )))
-            ]
-            content.append(AnyComponentWithIdentity(
+            let textColor = environment.theme.actionSheet.primaryTextColor
+            let commissionItemText = NSAttributedString(
+                string: commissionTitle,
+                font: Font.regular(15.0),
+                textColor: textColor
+            )
+            let durationItemText = NSAttributedString(
+                string: durationTitle,
+                font: Font.regular(15.0),
+                textColor: textColor
+            )
+            let commissionItem = TableComponent.Item(
+                id: 0,
+                title: environment.strings.AffiliateSetup_AlertApply_SectionCommission,
+                component: AnyComponent(MultilineTextComponent(text: .plain(commissionItemText)))
+            )
+            let durationItem = TableComponent.Item(
+                id: 1,
+                title: environment.strings.AffiliateSetup_AlertApply_SectionDuration,
+                component: AnyComponent(MultilineTextComponent(text: .plain(durationItemText)))
+            )
+            let tableItems: [TableComponent.Item] = [commissionItem, durationItem]
+            let tableComponent = AnyComponent(AlertTableComponent(items: tableItems))
+            let tableEntry = AnyComponentWithIdentity<AlertComponentEnvironment>(
                 id: "table",
-                component: AnyComponent(
-                    AlertTableComponent(items: tableItems)
-                )
-            ))
+                component: tableComponent
+            )
+            content.append(tableEntry)
             
             let alertController = AlertScreen(
                 context: component.context,

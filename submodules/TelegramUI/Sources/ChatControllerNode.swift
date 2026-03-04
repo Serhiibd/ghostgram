@@ -1129,7 +1129,9 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
             }
         }
         
-        let isSecret = self.chatPresentationInterfaceState.copyProtectionEnabled || self.chatLocation.peerId?.namespace == Namespaces.Peer.SecretChat || self.chatLocation.peerId?.isVerificationCodes == true
+        // GHOSTGRAM: Bypass screenshot protection if enabled in Misc settings
+        let effectiveCopyProtection = MiscSettingsManager.shared.shouldBypassScreenshotProtection ? false : self.chatPresentationInterfaceState.copyProtectionEnabled
+        let isSecret = effectiveCopyProtection || self.chatLocation.peerId?.namespace == Namespaces.Peer.SecretChat || self.chatLocation.peerId?.isVerificationCodes == true
         if self.historyNodeContainer.isSecret != isSecret {
             self.historyNodeContainer.isSecret = isSecret
             setLayerDisableScreenshots(self.titleAccessoryPanelContainer.layer, isSecret)
@@ -4600,12 +4602,10 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
                         }
                     }
                     
-                    self.setupSendActionOnViewUpdate({ [weak self] in
-                        guard let self, let textInputPanelNode = self.inputPanelNode as? ChatTextInputPanelNode else {
-                            return
-                        }
+                    // GHOSTGRAM: When send delay is active, scheduled messages
+                    // don't trigger history view update, so clear input immediately.
+                    if SendDelayManager.shared.isEnabled {
                         self.collapseInput()
-                        
                         self.ignoreUpdateHeight = true
                         textInputPanelNode.text = ""
                         self.requestUpdateChatInterfaceState(.immediate, overrideThreadId == nil, { state in
@@ -4624,7 +4624,33 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
                             return state
                         })
                         self.ignoreUpdateHeight = false
-                    }, usedCorrelationId)
+                    } else {
+                        self.setupSendActionOnViewUpdate({ [weak self] in
+                            guard let self, let textInputPanelNode = self.inputPanelNode as? ChatTextInputPanelNode else {
+                                return
+                            }
+                            self.collapseInput()
+                            
+                            self.ignoreUpdateHeight = true
+                            textInputPanelNode.text = ""
+                            self.requestUpdateChatInterfaceState(.immediate, overrideThreadId == nil, { state in
+                                var state = state
+                                state = state.withUpdatedReplyMessageSubject(nil)
+                                state = state.withUpdatedSendMessageEffect(nil)
+                                
+                                if state.postSuggestionState != nil {
+                                    state = state.withUpdatedPostSuggestionState(nil)
+                                    state = state.withUpdatedEditMessage(nil)
+                                }
+                                
+                                state = state.withUpdatedForwardMessageIds(nil)
+                                state = state.withUpdatedForwardOptionsState(nil)
+                                state = state.withUpdatedComposeDisableUrlPreviews([])
+                                return state
+                            })
+                            self.ignoreUpdateHeight = false
+                        }, usedCorrelationId)
+                    }
                     completion()
                     
                     self.sendMessages(messages, silentPosting, scheduleTime, repeatPeriod, messages.count > 1, postpone)

@@ -29,6 +29,27 @@ public final class NavigationButtonComponent: Component {
         case more
         case icon(imageName: String)
         case proxy(status: ChatTitleProxyStatus)
+        /// Liquid glass avatar button for account switching.
+        /// peerId is used as a diff key; avatarImage is the rendered avatar.
+        case avatar(peerId: String, avatarImage: UIImage?)
+        
+        public static func ==(lhs: Content, rhs: Content) -> Bool {
+            switch (lhs, rhs) {
+            case let (.text(lt, lb), .text(rt, rb)):
+                return lt == rt && lb == rb
+            case (.more, .more):
+                return true
+            case let (.icon(l), .icon(r)):
+                return l == r
+            case let (.proxy(l), .proxy(r)):
+                return l == r
+            case let (.avatar(lId, _), .avatar(rId, _)):
+                // Re-render when peerId changes; image updates are handled by the view itself
+                return lId == rId
+            default:
+                return false
+            }
+        }
     }
     
     public let content: Content
@@ -62,6 +83,12 @@ public final class NavigationButtonComponent: Component {
         
         private var moreButton: MoreHeaderButton?
         
+        // MARK: - Liquid Glass Avatar
+        private var avatarContainerView: UIView?
+        private var avatarBlurView: UIVisualEffectView?
+        private var avatarImageView: UIImageView?
+        private var avatarBorderLayer: CAShapeLayer?
+        
         private var component: NavigationButtonComponent?
         private var theme: PresentationTheme?
         
@@ -74,19 +101,23 @@ public final class NavigationButtonComponent: Component {
                 guard let self else {
                     return
                 }
-                if highlighted {
-                    self.textView?.alpha = 0.6
-                    self.proxyNode?.alpha = 0.6
-                    self.iconView?.alpha = 0.6
-                } else {
-                    self.textView?.alpha = 1.0
-                    self.textView?.layer.animateAlpha(from: 0.6, to: 1.0, duration: 0.2)
-                    
-                    self.proxyNode?.alpha = 1.0
-                    self.proxyNode?.layer.animateAlpha(from: 0.6, to: 1.0, duration: 0.2)
-                    
-                    self.iconView?.alpha = 1.0
-                    self.iconView?.layer.animateAlpha(from: 0.6, to: 1.0, duration: 0.2)
+                let alpha: CGFloat = highlighted ? 0.55 : 1.0
+                self.textView?.alpha = alpha
+                self.proxyNode?.alpha = alpha
+                self.iconView?.alpha = alpha
+                self.avatarContainerView?.alpha = alpha
+                if !highlighted {
+                    let animateAlpha = { (layer: CALayer?) in
+                        let anim = CABasicAnimation(keyPath: "opacity")
+                        anim.fromValue = 0.55
+                        anim.toValue = 1.0
+                        anim.duration = 0.2
+                        layer?.add(anim, forKey: "opacity")
+                    }
+                    animateAlpha(self.textView?.layer)
+                    animateAlpha(self.proxyNode?.layer)
+                    animateAlpha(self.iconView?.layer)
+                    animateAlpha(self.avatarContainerView?.layer)
                 }
             }
         }
@@ -97,6 +128,51 @@ public final class NavigationButtonComponent: Component {
         
         @objc private func pressed() {
             self.component?.pressed(self)
+        }
+        
+        // MARK: - Liquid glass avatar setup
+        
+        private func setupAvatarViewsIfNeeded() {
+            guard avatarContainerView == nil else { return }
+            
+            // Container holds blur + image
+            let container = UIView()
+            container.isUserInteractionEnabled = false
+            container.clipsToBounds = true
+            
+            // Blur background — liquid glass effect
+            let blurEffect = UIBlurEffect(style: .systemUltraThinMaterial)
+            let blurView = UIVisualEffectView(effect: blurEffect)
+            blurView.isUserInteractionEnabled = false
+            container.addSubview(blurView)
+            
+            // Avatar image on top of blur
+            let imageView = UIImageView()
+            imageView.contentMode = .scaleAspectFill
+            imageView.isUserInteractionEnabled = false
+            imageView.clipsToBounds = true
+            container.addSubview(imageView)
+            
+            self.addSubview(container)
+            self.avatarContainerView = container
+            self.avatarBlurView = blurView
+            self.avatarImageView = imageView
+            
+            // Subtle glass ring border
+            let borderLayer = CAShapeLayer()
+            borderLayer.fillColor = UIColor.clear.cgColor
+            borderLayer.strokeColor = UIColor.white.withAlphaComponent(0.22).cgColor
+            borderLayer.lineWidth = 1.5
+            container.layer.addSublayer(borderLayer)
+            self.avatarBorderLayer = borderLayer
+        }
+        
+        private func removeAvatarViews() {
+            avatarContainerView?.removeFromSuperview()
+            avatarContainerView = nil
+            avatarBlurView = nil
+            avatarImageView = nil
+            avatarBorderLayer = nil
         }
         
         func update(component: NavigationButtonComponent, availableSize: CGSize, state: EmptyComponentState, environment: Environment<NavigationButtonComponentEnvironment>, transition: ComponentTransition) -> CGSize {
@@ -113,6 +189,7 @@ public final class NavigationButtonComponent: Component {
             var imageName: String?
             var proxyStatus: ChatTitleProxyStatus?
             var isMore: Bool = false
+            var avatarContent: (peerId: String, image: UIImage?)? = nil
             
             switch component.content {
             case let .text(title, isBold):
@@ -123,10 +200,13 @@ public final class NavigationButtonComponent: Component {
                 imageName = imageNameValue
             case let .proxy(status):
                 proxyStatus = status
+            case let .avatar(peerId, image):
+                avatarContent = (peerId, image)
             }
             
             var size = CGSize(width: 0.0, height: availableSize.height)
             
+            // MARK: Text
             if let textString = textString {
                 let textView: ImmediateTextView
                 if let current = self.textView {
@@ -144,11 +224,13 @@ public final class NavigationButtonComponent: Component {
                 size.width = max(44.0, textSize.width + textInset * 2.0)
                 
                 textView.frame = CGRect(origin: CGPoint(x: floor((size.width - textSize.width) / 2.0), y: floor((availableSize.height - textSize.height) / 2.0)), size: textSize)
+                removeAvatarViews()
             } else if let textView = self.textView {
                 self.textView = nil
                 textView.removeFromSuperview()
             }
             
+            // MARK: Icon
             if let imageName = imageName {
                 let iconView: UIImageView
                 if let current = self.iconView {
@@ -166,15 +248,16 @@ public final class NavigationButtonComponent: Component {
                 
                 if let iconSize = iconView.image?.size {
                     size.width = 44.0
-                    
                     iconView.frame = CGRect(origin: CGPoint(x: floor((size.width - iconSize.width) / 2.0), y: floor((availableSize.height - iconSize.height) / 2.0)), size: iconSize)
                 }
+                removeAvatarViews()
             } else if let iconView = self.iconView {
                 self.iconView = nil
                 iconView.removeFromSuperview()
                 self.iconImageName = nil
             }
             
+            // MARK: Proxy
             if let proxyStatus = proxyStatus {
                 let proxyNode: ChatTitleProxyNode
                 if let current = self.proxyNode {
@@ -191,13 +274,14 @@ public final class NavigationButtonComponent: Component {
                 
                 proxyNode.theme = theme
                 proxyNode.status = proxyStatus
-                
                 proxyNode.frame = CGRect(origin: CGPoint(x: floor((size.width - proxySize.width) / 2.0), y: floor((availableSize.height - proxySize.height) / 2.0)), size: proxySize)
+                removeAvatarViews()
             } else if let proxyNode = self.proxyNode {
                 self.proxyNode = nil
                 proxyNode.removeFromSupernode()
             }
             
+            // MARK: More
             if isMore {
                 let moreButton: MoreHeaderButton
                 if let current = self.moreButton, !themeUpdated {
@@ -233,11 +317,50 @@ public final class NavigationButtonComponent: Component {
                 size.width = 44.0
                 
                 moreButton.setContent(.more(MoreHeaderButton.optionsCircleImage(color: theme.rootController.navigationBar.buttonColor)))
-                
                 moreButton.frame = CGRect(origin: CGPoint(x: floor((size.width - buttonSize.width) / 2.0), y: floor((size.height - buttonSize.height) / 2.0)), size: buttonSize)
+                removeAvatarViews()
             } else if let moreButton = self.moreButton {
                 self.moreButton = nil
                 moreButton.removeFromSupernode()
+            }
+            
+            // MARK: Liquid Glass Avatar
+            if let (_, image) = avatarContent {
+                setupAvatarViewsIfNeeded()
+                
+                let avatarDiameter: CGFloat = 28.0
+                size.width = 44.0
+                
+                let containerRect = CGRect(
+                    x: floor((size.width - avatarDiameter) / 2.0),
+                    y: floor((availableSize.height - avatarDiameter) / 2.0),
+                    width: avatarDiameter,
+                    height: avatarDiameter
+                )
+                
+                avatarContainerView?.frame = containerRect
+                avatarContainerView?.layer.cornerRadius = avatarDiameter / 2.0
+                
+                avatarBlurView?.frame = CGRect(origin: .zero, size: containerRect.size)
+                
+                if let image = image {
+                    avatarImageView?.image = image
+                    avatarImageView?.frame = CGRect(origin: .zero, size: containerRect.size)
+                    avatarImageView?.backgroundColor = nil
+                } else {
+                    avatarImageView?.image = nil
+                    // Fallback: solid tinted background when no photo
+                    avatarImageView?.frame = CGRect(origin: .zero, size: containerRect.size)
+                    avatarImageView?.backgroundColor = theme.list.itemAccentColor.withAlphaComponent(0.35)
+                }
+                
+                // Update border ring path
+                let borderPath = UIBezierPath(roundedRect: CGRect(origin: .zero, size: containerRect.size).insetBy(dx: 0.75, dy: 0.75), cornerRadius: avatarDiameter / 2.0)
+                avatarBorderLayer?.path = borderPath.cgPath
+                avatarBorderLayer?.frame = CGRect(origin: .zero, size: containerRect.size)
+                
+            } else if avatarContent == nil && avatarContainerView != nil {
+                removeAvatarViews()
             }
             
             return size

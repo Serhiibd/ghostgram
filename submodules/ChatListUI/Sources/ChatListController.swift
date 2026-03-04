@@ -6595,8 +6595,17 @@ private final class ChatListLocationContext {
     var proxyButton: AnyComponentWithIdentity<NavigationButtonComponentEnvironment>?
     var storyButton: AnyComponentWithIdentity<NavigationButtonComponentEnvironment>?
     
+    // GHOSTGRAM: Account switcher — liquid glass avatar button for the next account
+    var accountSwitcherButton: AnyComponentWithIdentity<NavigationButtonComponentEnvironment>?
+    private var accountSwitcherDisposable: Disposable?
+    private var accountSwitcherAvatarDisposable: Disposable?
+    
     var rightButtons: [AnyComponentWithIdentity<NavigationButtonComponentEnvironment>] {
         var result: [AnyComponentWithIdentity<NavigationButtonComponentEnvironment>] = []
+        // Account switcher is first — leftmost of the right-side buttons
+        if let accountSwitcherButton = self.accountSwitcherButton {
+            result.append(accountSwitcherButton)
+        }
         if let rightButton = self.rightButton {
             result.append(rightButton)
         }
@@ -6630,6 +6639,90 @@ private final class ChatListLocationContext {
         self.context = context
         self.location = location
         self.parentController = parentController
+        
+        // GHOSTGRAM: Subscribe to account list and maintain the switcher button
+        if case .chatList(.root) = location {
+            self.accountSwitcherDisposable = (context.sharedContext.activeAccountsWithInfo
+                |> deliverOnMainQueue)
+                .start(next: { [weak self] (info: (primary: AccountRecordId?, accounts: [AccountWithInfo])) in
+                    guard let self else { return }
+                    
+                    let primaryId = info.primary
+                    let accounts = info.accounts
+                    
+                    // Only show when there is more than one account
+                    guard accounts.count > 1, let primaryId = primaryId else {
+                        if self.accountSwitcherButton != nil {
+                            self.accountSwitcherButton = nil
+                            let _ = self.parentController?.updateHeaderContent()
+                            self.parentController?.requestLayout(transition: .immediate)
+                        }
+                        return
+                    }
+                    
+                    // Find next account cyclically
+                    let currentIndex = accounts.firstIndex(where: { $0.account.id == primaryId }) ?? 0
+                    let nextIndex = (currentIndex + 1) % accounts.count
+                    let nextAccount = accounts[nextIndex]
+                    let nextPeer = nextAccount.peer
+                    let nextPeerId = "\(nextAccount.account.id)"
+                    
+                    // Build button placeholder immediately (image loads async)
+                    let buildButton: (UIImage?) -> Void = { [weak self] image in
+                        guard let self else { return }
+                        guard case .chatList(.root) = self.location else { return }
+                        
+                        let sharedContext = self.context.sharedContext
+                        let nextAccountId = nextAccount.account.id
+                        
+                        self.accountSwitcherButton = AnyComponentWithIdentity(
+                            id: "accountSwitcher",
+                            component: AnyComponent(NavigationButtonComponent(
+                                content: .avatar(peerId: nextPeerId, avatarImage: image),
+                                pressed: { [weak sharedContext] _ in
+                                    sharedContext?.switchToAccount(id: nextAccountId, fromSettingsController: nil, withChatListController: nil)
+                                }
+                            ))
+                        )
+                        // Trigger header rebuild
+                        let _ = self.parentController?.updateHeaderContent()
+                        self.parentController?.requestLayout(transition: .immediate)
+                    }
+                    
+                    // Attempt to load the peer's avatar from mediaBox
+                    if let representation = nextPeer.smallProfileImage {
+                        self.accountSwitcherAvatarDisposable?.dispose()
+                        let resource = representation.resource
+                        let account = nextAccount.account
+                        
+                        // Try to read cached data first; if not ready, trigger a fetch then watch for completion
+                        self.accountSwitcherAvatarDisposable = (account.postbox.mediaBox
+                            .resourceData(resource)
+                            |> deliverOnMainQueue)
+                            .start(next: { data in
+                                if data.complete, let uiImage = UIImage(contentsOfFile: data.path) {
+                                    buildButton(uiImage)
+                                }
+                            }, completed: {
+                                // If resource was never complete after signal ended, show placeholder
+                                buildButton(nil)
+                            })
+                        
+                        // Trigger the actual network fetch so mediaBox populates the resource
+                        if let peerReference = PeerReference(nextPeer) {
+                            let _ = fetchedMediaResource(
+                                mediaBox: account.postbox.mediaBox,
+                                userLocation: .peer(nextPeer.id),
+                                userContentType: .avatar,
+                                reference: .avatar(peer: peerReference, resource: resource)
+                            ).start()
+                        }
+                    } else {
+                        // No photo — show placeholder
+                        buildButton(nil)
+                    }
+                })
+        }
         
         let hasProxy = context.sharedContext.accountManager.sharedData(keys: [SharedDataKeys.proxySettings])
         |> map { sharedData -> (Bool, Bool) in
@@ -6949,6 +7042,8 @@ private final class ChatListLocationContext {
     deinit {
         self.titleDisposable?.dispose()
         self.stateDisposable?.dispose()
+        self.accountSwitcherDisposable?.dispose()
+        self.accountSwitcherAvatarDisposable?.dispose()
     }
     
     private func updateChatList(
@@ -6982,6 +7077,7 @@ private final class ChatListLocationContext {
             if case .chatList(.root) = self.location {
                 self.rightButton = nil
                 self.storyButton = nil
+                self.accountSwitcherButton = nil
             }
             let title = !stateAndFilterId.state.selectedPeerIds.isEmpty ? presentationData.strings.ChatList_SelectedChats(Int32(stateAndFilterId.state.selectedPeerIds.count)) : defaultTitle
             
@@ -6997,6 +7093,7 @@ private final class ChatListLocationContext {
             if case .chatList(.root) = self.location {
                 self.rightButton = nil
                 self.storyButton = nil
+                self.accountSwitcherButton = nil
             }
             self.leftButton = AnyComponentWithIdentity(id: "done", component: AnyComponent(NavigationButtonComponent(
                 content: .text(title: presentationData.strings.Common_Done, isBold: true),

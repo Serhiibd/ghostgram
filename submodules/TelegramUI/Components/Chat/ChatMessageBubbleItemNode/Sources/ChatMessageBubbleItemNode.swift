@@ -481,6 +481,10 @@ private func mapVisibility(_ visibility: ListViewItemNodeVisibility, boundsSize:
     }
 }
 
+private func isDeletedBubbleMessage(_ message: Message) -> Bool {
+    return AntiDeleteManager.shared.isMessageDeleted(peerId: message.id.peerId.toInt64(), messageId: message.id.id) || AntiDeleteManager.shared.isMessageDeleted(text: message.text)
+}
+
 public class ChatMessageBubbleItemNode: ChatMessageItemView, ChatMessagePreviewItemNode {
     public class ContentContainer {
         public let contentMessageStableId: UInt32
@@ -4368,6 +4372,14 @@ public class ChatMessageBubbleItemNode: ChatMessageItemView, ChatMessagePreviewI
             }
         }
         
+        let deletedMessageAlpha = CGFloat(AntiDeleteManager.shared.deletedMessageDisplayAlpha)
+        var deletedMessageStableIds = Set<UInt32>()
+        for (message, _) in item.content {
+            if isDeletedBubbleMessage(message) {
+                deletedMessageStableIds.insert(message.stableId)
+            }
+        }
+        
         var incomingOffset: CGFloat = 0.0
         switch backgroundType {
         case .incoming:
@@ -4512,8 +4524,29 @@ public class ChatMessageBubbleItemNode: ChatMessageItemView, ChatMessagePreviewI
             }
             
             contentContainer?.update(size: relativeFrame.size, contentOrigin: contentOrigin, selectionInsets: selectionInsets, index: index, presentationData: item.presentationData, graphics: graphics, backgroundType: backgroundType, presentationContext: item.controllerInteraction.presentationContext, mediaBox: item.context.account.postbox.mediaBox, messageSelection: itemSelection)
+            
+            if let contentContainer = contentContainer {
+                let containerAlpha: CGFloat = deletedMessageStableIds.contains(stableId) ? deletedMessageAlpha : 1.0
+                if case .System = animation {
+                    animation.animator.updateAlpha(layer: contentContainer.sourceNode.contentNode.layer, alpha: containerAlpha, completion: nil)
+                } else {
+                    contentContainer.sourceNode.contentNode.alpha = containerAlpha
+                }
+            }
                         
             index += 1
+        }
+        
+        let mainContainerAlpha: CGFloat
+        if contentContainerNodeFrames.isEmpty, !deletedMessageStableIds.isEmpty {
+            mainContainerAlpha = deletedMessageAlpha
+        } else {
+            mainContainerAlpha = 1.0
+        }
+        if case .System = animation {
+            animation.animator.updateAlpha(layer: strongSelf.mainContextSourceNode.contentNode.layer, alpha: mainContainerAlpha, completion: nil)
+        } else {
+            strongSelf.mainContextSourceNode.contentNode.alpha = mainContainerAlpha
         }
         
         if hasSelection {

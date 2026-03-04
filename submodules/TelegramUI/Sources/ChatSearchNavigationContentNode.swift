@@ -31,7 +31,7 @@ final class ChatSearchNavigationContentNode: NavigationBarContentNode {
         self.chatLocation = chatLocation
         self.interaction = interaction
         
-        self.searchBar = SearchBarNode(theme: SearchBarNodeTheme(theme: theme, hasBackground: false, hasSeparator: false), strings: strings, fieldStyle: .modern)
+        self.searchBar = SearchBarNode(theme: SearchBarNodeTheme(theme: theme, hasBackground: false, hasSeparator: false), presentationTheme: theme, strings: strings, fieldStyle: .modern)
         let placeholderText: String
         switch chatLocation {
         case .peer, .replyThread, .customChatContents:
@@ -90,10 +90,11 @@ final class ChatSearchNavigationContentNode: NavigationBarContentNode {
         return 54.0
     }
     
-    override func updateLayout(size: CGSize, leftInset: CGFloat, rightInset: CGFloat, transition: ContainedViewLayoutTransition) {
+    override func updateLayout(size: CGSize, leftInset: CGFloat, rightInset: CGFloat, transition: ContainedViewLayoutTransition) -> CGSize {
         let searchBarFrame = CGRect(origin: CGPoint(x: 0.0, y: size.height - self.nominalHeight), size: CGSize(width: size.width, height: 54.0))
         self.searchBar.frame = searchBarFrame
         self.searchBar.updateLayout(boundingSize: searchBarFrame.size, leftInset: leftInset, rightInset: rightInset, transition: transition)
+        return size
     }
     
     func activate() {
@@ -106,7 +107,7 @@ final class ChatSearchNavigationContentNode: NavigationBarContentNode {
     
     func update(presentationInterfaceState: ChatPresentationInterfaceState) {
         if let search = presentationInterfaceState.search {
-            self.searchBar.updateThemeAndStrings(theme: SearchBarNodeTheme(theme: presentationInterfaceState.theme, hasBackground: false, hasSeparator: false), strings: presentationInterfaceState.strings)
+            self.searchBar.updateThemeAndStrings(theme: SearchBarNodeTheme(theme: presentationInterfaceState.theme, hasBackground: false, hasSeparator: false), presentationTheme: presentationInterfaceState.theme, strings: presentationInterfaceState.strings)
             
             switch search.domain {
             case .everything, .tag:

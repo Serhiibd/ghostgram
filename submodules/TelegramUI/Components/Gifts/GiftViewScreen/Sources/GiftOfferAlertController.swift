@@ -133,7 +133,7 @@ public func giftOfferAlertController(
                 HStack(items, spacing: 4.0)
             )
             
-            tableItems.append(.init(
+            tableItems.append(TableComponent.Item(
                 id: id,
                 title: title,
                 hasBackground: false,
@@ -180,12 +180,12 @@ public func giftOfferAlertController(
             AlertTextComponent(content: .plain(text))
         )
     ))
-    content.append(AnyComponentWithIdentity(
+    let tableComponent = AnyComponent(AlertTableComponent(items: tableItems))
+    let tableEntry = AnyComponentWithIdentity<AlertComponentEnvironment>(
         id: "table",
-        component: AnyComponent(
-            AlertTableComponent(items: tableItems)
-        )
-    ))
+        component: tableComponent
+    )
+    content.append(tableEntry)
     
     if let valueAmount = gift.valueUsdAmount {
         let resaleConfiguration = StarsSubscriptionConfiguration.with(appConfiguration: context.currentAppConfiguration.with { $0 })

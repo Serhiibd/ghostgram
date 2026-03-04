@@ -328,7 +328,7 @@ private final class NavigationButtonItemNode: ImmediateTextNode {
 }
 
 
-public final class NavigationButtonNode: ContextControllerSourceNode {
+public final class NavigationButtonNodeImpl: ContextControllerSourceNode, NavigationButtonNode {
     private var nodes: [NavigationButtonItemNode] = []
     
     private var disappearingNodes: [(frame: CGRect, size: CGSize, node: NavigationButtonItemNode)] = []

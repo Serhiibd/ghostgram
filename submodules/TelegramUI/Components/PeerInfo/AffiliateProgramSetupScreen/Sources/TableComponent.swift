@@ -6,7 +6,7 @@ import TelegramPresentationData
 import MultilineTextComponent
 import AlertComponent
 
-final class TableComponent: CombinedComponent {
+final class AffiliateTableComponent: CombinedComponent {
     class Item: Equatable {
         public let id: AnyHashable
         public let title: String
@@ -45,7 +45,7 @@ final class TableComponent: CombinedComponent {
         self.items = items
     }
 
-    public static func ==(lhs: TableComponent, rhs: TableComponent) -> Bool {
+    public static func ==(lhs: AffiliateTableComponent, rhs: AffiliateTableComponent) -> Bool {
         if lhs.theme !== rhs.theme {
             return false
         }
@@ -228,9 +228,9 @@ private final class TableAlertContentComponent: CombinedComponent {
     let theme: PresentationTheme
     let title: String
     let text: String
-    let table: TableComponent
+    let table: AffiliateTableComponent
     
-    init(theme: PresentationTheme, title: String, text: String, table: TableComponent) {
+    init(theme: PresentationTheme, title: String, text: String, table: AffiliateTableComponent) {
         self.theme = theme
         self.title = title
         self.text = text
@@ -256,7 +256,7 @@ private final class TableAlertContentComponent: CombinedComponent {
     public static var body: Body {
         let title = Child(MultilineTextComponent.self)
         let text = Child(MultilineTextComponent.self)
-        let table = Child(TableComponent.self)
+        let table = Child(AffiliateTableComponent.self)
         
         return { context in
             let title = title.update(
@@ -317,18 +317,4 @@ private final class TableAlertContentComponent: CombinedComponent {
             return size
         }
     }
-}
-
-func tableAlert(theme: PresentationTheme, title: String, text: String, table: TableComponent, actions: [ComponentAlertAction]) -> ViewController {
-    return componentAlertController(
-        theme: AlertControllerTheme(presentationTheme: theme, fontSize: .regular),
-        content: AnyComponent(TableAlertContentComponent(
-            theme: theme,
-            title: title,
-            text: text,
-            table: table
-        )),
-        actions: actions,
-        actionLayout: .horizontal
-    )
 }

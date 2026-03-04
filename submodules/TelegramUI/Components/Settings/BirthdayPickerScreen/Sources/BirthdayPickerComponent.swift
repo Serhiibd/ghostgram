@@ -69,7 +69,7 @@ public final class BirthdayPickerComponent: Component {
         
         private let calendar = Calendar(identifier: .gregorian)
         private var value = TelegramBirthday(day: 1, month: 1, year: nil)
-        private var minYear: Int32 = 1900
+        private var minYear: Int32 = 1
         private let maxYear: Int32
         
         override init(frame: CGRect) {

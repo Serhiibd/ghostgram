@@ -13,7 +13,7 @@ private let pink = UIColor(rgb: 0xef436c)
 private let latePurple = UIColor(rgb: 0x974aa9)
 private let latePink = UIColor(rgb: 0xf0436c)
 
-private func textForTimeout(value: Int32) -> String {
+private func scheduledInfoTextForTimeout(value: Int32) -> String {
     if value < 3600 {
         let minutes = value / 60
         let seconds = value % 60
@@ -150,7 +150,7 @@ final class VideoChatScheduledInfoComponent: Component {
             if remainingSeconds >= 86400 {
                 countdownText = scheduledTimeIntervalString(strings: component.strings, value: remainingSeconds)
             } else {
-                countdownText = textForTimeout(value: abs(remainingSeconds))
+                countdownText = scheduledInfoTextForTimeout(value: abs(remainingSeconds))
                 /*if remainingSeconds < 0 && !self.isLate {
                     self.isLate = true
                     self.foregroundGradientLayer.colors = [latePink.cgColor, latePurple.cgColor, latePurple.cgColor]

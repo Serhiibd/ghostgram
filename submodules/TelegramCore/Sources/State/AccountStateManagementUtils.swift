@@ -4233,6 +4233,9 @@ func replayFinalState(
                 if AntiDeleteManager.shared.isEnabled {
                     let messageIds = transaction.messageIdsForGlobalIds(ids)
                     for (index, messageId) in messageIds.enumerated() {
+                        // Skip scheduled/local/quick-reply messages — they get deleted when sent, not by the remote peer
+                        guard messageId.namespace == Namespaces.Message.Cloud else { continue }
+                        
                         if let message = transaction.getMessage(messageId) {
                             let globalId = index < ids.count ? ids[index] : 0
                             
@@ -4289,6 +4292,9 @@ func replayFinalState(
                 if AntiDeleteManager.shared.isEnabled {
                     let messageIds = transaction.messageIdsForGlobalIds(ids)
                     for messageId in messageIds {
+                        // Skip scheduled/local/quick-reply messages — they get deleted when sent, not by the remote peer
+                        guard messageId.namespace == Namespaces.Message.Cloud else { continue }
+                        
                         // Mark as deleted for icon display
                         AntiDeleteManager.shared.markAsDeleted(peerId: messageId.peerId.toInt64(), messageId: messageId.id)
                         
@@ -4317,6 +4323,9 @@ func replayFinalState(
                 // ANTI-DELETE: Archive channel messages with full content before deletion
                 if AntiDeleteManager.shared.isEnabled {
                     for messageId in ids {
+                        // Skip scheduled/local/quick-reply messages — they get deleted when sent, not by the remote peer
+                        guard messageId.namespace == Namespaces.Message.Cloud else { continue }
+                        
                         if let message = transaction.getMessage(messageId) {
                             // Extract text content
                             let textContent = message.text
@@ -4370,6 +4379,9 @@ func replayFinalState(
                 // ANTI-DELETE: Mark messages as deleted instead of removing them
                 if AntiDeleteManager.shared.isEnabled {
                     for messageId in ids {
+                        // Skip scheduled/local/quick-reply messages — they get deleted when sent, not by the remote peer
+                        guard messageId.namespace == Namespaces.Message.Cloud else { continue }
+                        
                         // Mark as deleted for icon display
                         AntiDeleteManager.shared.markAsDeleted(peerId: messageId.peerId.toInt64(), messageId: messageId.id)
                         

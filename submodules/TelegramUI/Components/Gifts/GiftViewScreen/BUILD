@@ -5,6 +5,8 @@ swift_library(
     module_name = "GiftViewScreen",
     srcs = glob([
         "Sources/**/*.swift",
+    ], exclude = [
+        "Sources/TableComponent.swift",
     ]),
     copts = [
         "-warnings-as-errors",

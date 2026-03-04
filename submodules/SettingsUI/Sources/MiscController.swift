@@ -328,7 +328,7 @@ public func miscController(context: AccountContext) -> ViewController {
         
         let controllerState = ItemListControllerState(
             presentationData: ItemListPresentationData(presentationData),
-            title: .text("Misc"),
+            title: .text("Прочее"),
             leftNavigationButton: nil,
             rightNavigationButton: nil,
             backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back),

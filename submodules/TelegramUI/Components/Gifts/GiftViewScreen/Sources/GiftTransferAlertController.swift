@@ -118,7 +118,7 @@ public func giftTransferAlertController(
                 HStack(items, spacing: 4.0)
             )
             
-            tableItems.append(.init(
+            tableItems.append(TableComponent.Item(
                 id: id,
                 title: title,
                 hasBackground: false,
@@ -165,12 +165,12 @@ public func giftTransferAlertController(
             AlertTextComponent(content: .plain(text))
         )
     ))
-    content.append(AnyComponentWithIdentity(
+    let tableComponent = AnyComponent(AlertTableComponent(items: tableItems))
+    let tableEntry = AnyComponentWithIdentity<AlertComponentEnvironment>(
         id: "table",
-        component: AnyComponent(
-            AlertTableComponent(items: tableItems)
-        )
-    ))
+        component: tableComponent
+    )
+    content.append(tableEntry)
     
     let alertController = ChatMessagePaymentAlertController(
         context: context,

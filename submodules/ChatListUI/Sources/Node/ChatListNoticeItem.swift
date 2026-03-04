@@ -14,6 +14,7 @@ import MergedAvatarsNode
 import TextNodeWithEntities
 import TextFormat
 import AvatarNode
+import GlobalControlPanelsContext
 
 class ChatListNoticeItem: ListViewItem {
     enum Action {
@@ -25,12 +26,12 @@ class ChatListNoticeItem: ListViewItem {
     let context: AccountContext
     let theme: PresentationTheme
     let strings: PresentationStrings
-    let notice: ChatListNotice
+    let notice: GlobalControlPanelsContext.ChatListNotice
     let action: (Action) -> Void
     
     let selectable: Bool = true
     
-    init(context: AccountContext, theme: PresentationTheme, strings: PresentationStrings, notice: ChatListNotice, action: @escaping (Action) -> Void) {
+    init(context: AccountContext, theme: PresentationTheme, strings: PresentationStrings, notice: GlobalControlPanelsContext.ChatListNotice, action: @escaping (Action) -> Void) {
         self.context = context
         self.theme = theme
         self.strings = strings
@@ -130,7 +131,7 @@ final class ChatListNoticeItemNode: ItemListRevealOptionsItemNode {
         self.arrowNode = ASImageNode()
         self.separatorNode = ASDisplayNode()
         
-        super.init(layerBacked: false, dynamicBounce: false, rotated: false, seeThrough: false)
+        super.init(layerBacked: false, rotated: false, seeThrough: false)
         
         self.contentContainer.clipsToBounds = true
         self.clipsToBounds = true

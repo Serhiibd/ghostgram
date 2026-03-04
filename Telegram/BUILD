@@ -36,6 +36,7 @@ load(
     "telegram_bazel_path",
     "telegram_use_xcode_managed_codesigning",
     "telegram_bundle_id",
+    "telegram_is_appstore_build",
     "telegram_aps_environment",
     "telegram_team_id",
     "telegram_enable_icloud",
@@ -509,6 +510,16 @@ aps_fragment = "" if telegram_aps_environment == "" else """
 <string>{telegram_aps_environment}</string>
 """.format(telegram_aps_environment=telegram_aps_environment)
 
+beta_reports_active_fragment = "" if telegram_is_appstore_build != "true" else """
+<key>beta-reports-active</key>
+<true/>
+"""
+
+get_task_allow_fragment = """
+<key>get-task-allow</key>
+<{value}/>
+""".format(value = "false" if telegram_is_appstore_build == "true" else "true")
+
 app_groups_fragment = """
     <key>com.apple.security.application-groups</key>
     <array>
@@ -546,6 +557,8 @@ plist_fragment(
     extension = "entitlements",
     template = "".join([
         aps_fragment,
+        beta_reports_active_fragment,
+        get_task_allow_fragment,
         app_groups_fragment,
         siri_fragment,
         associated_domains_fragment,
@@ -1718,7 +1731,7 @@ ios_application(
         ":RequiredDeviceCapabilitiesPlist",
         ":UrlTypesInfoPlist",
     ],
-    app_icons = [ ":{}_icon".format(name) for name in composer_icon_folders ],
+    app_icons = [":DefaultAppIcon"],
     alternate_icons = [
         ":{}".format(name) for name in alternate_icon_folders
     ],

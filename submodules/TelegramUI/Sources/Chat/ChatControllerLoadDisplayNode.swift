@@ -692,6 +692,44 @@ extension ChatControllerImpl {
         
         self.displayNode = ChatControllerNode(context: self.context, chatLocation: self.chatLocation, chatLocationContextHolder: self.chatLocationContextHolder, subject: self.subject, controllerInteraction: self.controllerInteraction!, chatPresentationInterfaceState: self.presentationInterfaceState, automaticMediaDownloadSettings: self.automaticMediaDownloadSettings, navigationBar: self.navigationBar, statusBar: self.statusBar, backgroundNode: self.chatBackgroundNode, controller: self)
         
+        // Seed the title pill synchronously from whatever data is available at this point,
+        // so the header shows the peer name immediately instead of staying blank until
+        // the first async contentDataUpdated() fires.
+        let initialTitleContent: ChatTitleContent? = self.contentData?.state.chatTitleContent
+            ?? self.presentationInterfaceState.renderedPeer.flatMap { renderedPeer -> ChatTitleContent? in
+                guard let peer = renderedPeer.peer else { return nil }
+                let peerData = ChatTitleContent.PeerData(
+                    peerId: renderedPeer.peerId,
+                    peer: peer,
+                    isContact: false,
+                    isSavedMessages: peer.id == self.context.account.peerId,
+                    notificationSettings: nil,
+                    peerPresences: [:],
+                    cachedData: nil
+                )
+                return .peer(
+                    peerView: peerData,
+                    customTitle: nil,
+                    customSubtitle: nil,
+                    onlineMemberCount: (nil, nil),
+                    isScheduledMessages: false,
+                    isMuted: nil,
+                    customMessageCount: nil,
+                    isEnabled: true
+                )
+            }
+        if let initialTitleContent {
+            self.chatTitleView?.update(
+                context: self.context,
+                theme: self.presentationData.theme,
+                strings: self.presentationData.strings,
+                dateTimeFormat: self.presentationData.dateTimeFormat,
+                nameDisplayOrder: self.presentationData.nameDisplayOrder,
+                content: initialTitleContent,
+                transition: .immediate
+            )
+        }
+        
         if let currentItem = self.globalControlPanelsContext?.tempVoicePlaylistCurrentItem {
             self.chatDisplayNode.historyNode.voicePlaylistItemChanged(nil, currentItem)
         }

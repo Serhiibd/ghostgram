@@ -241,7 +241,7 @@ def generate(header_path: str, implementation_path: str, data_path: str, entries
                         arguments_array += ', '
                     arguments_array += '[[NSString alloc] initWithFormat:@"%@", arg{}]'.format(i)
                 formatted_accessors += '''
-static _FormattedString * _Nonnull getFormatted{num_arguments}(_PresentationStrings * _Nonnull strings,
+static __attribute__((unused)) _FormattedString * _Nonnull getFormatted{num_arguments}(_PresentationStrings * _Nonnull strings,
     uint32_t keyId{arguments_string}) {{
     NSString *formatString = getSingle(strings, strings->_idToKey[@(keyId)], nil);
     NSArray<_FormattedStringRange *> *argumentRanges = extractArgumentRanges(formatString);

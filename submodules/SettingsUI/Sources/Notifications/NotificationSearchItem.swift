@@ -90,7 +90,7 @@ class NotificationSearchItemNode: ListViewItemNode {
     required init() {
         self.searchBarNode = SearchBarPlaceholderNode()
         
-        super.init(layerBacked: false, dynamicBounce: false)
+        super.init(layerBacked: false)
         
         self.addSubnode(self.searchBarNode)
     }
@@ -104,16 +104,16 @@ class NotificationSearchItemNode: ListViewItemNode {
     }
     
     func asyncLayout() -> (_ item: NotificationSearchItem, _ params: ListViewItemLayoutParams) -> (ListViewItemNodeLayout, (Bool) -> Void) {
-        let searchBarNodeLayout = self.searchBarNode.asyncLayout()
         let placeholder = self.placeholder
         
         return { item, params in
             let baseWidth = params.width - params.leftInset - params.rightInset
             
             let backgroundColor = item.theme.chatList.itemBackgroundColor
+            let iconColor = UIColor(rgb: 0x8e8e93)
+            let controlColor = item.theme.chat.inputPanel.panelControlColor
             
             let placeholderString = NSAttributedString(string: placeholder ?? "", font: searchBarFont, textColor: UIColor(rgb: 0x8e8e93))
-            let (_, searchBarApply) = searchBarNodeLayout(placeholderString, placeholderString, CGSize(width: baseWidth - 16.0, height: 28.0), 1.0, UIColor(rgb: 0x8e8e93), item.theme.chatList.regularSearchBarColor, backgroundColor, .immediate)
             
             let layout = ListViewItemNodeLayout(contentSize: CGSize(width: params.width, height: 44.0), insets: UIEdgeInsets())
             
@@ -126,10 +126,9 @@ class NotificationSearchItemNode: ListViewItemNode {
                         transition = .immediate
                     }
                     
-                    strongSelf.searchBarNode.frame = CGRect(origin: CGPoint(x: params.leftInset + 8.0, y: 8.0), size: CGSize(width: baseWidth - 16.0, height: 28.0))
-                    searchBarApply()
-                    
-                    strongSelf.searchBarNode.bounds = CGRect(origin: CGPoint(), size: CGSize(width: baseWidth - 16.0, height: 28.0))
+                    let searchBarSize = CGSize(width: baseWidth - 16.0, height: 28.0)
+                    strongSelf.searchBarNode.frame = CGRect(origin: CGPoint(x: params.leftInset + 8.0, y: 8.0), size: searchBarSize)
+                    _ = strongSelf.searchBarNode.updateLayout(placeholderString: placeholderString, compactPlaceholderString: placeholderString, constrainedSize: searchBarSize, expansionProgress: 1.0, iconColor: iconColor, foregroundColor: item.theme.chatList.regularSearchBarColor, backgroundColor: backgroundColor, controlColor: controlColor, transition: transition)
                     
                     transition.updateBackgroundColor(node: strongSelf, color: backgroundColor)
                 }

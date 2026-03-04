@@ -8,7 +8,7 @@ import ChatPresentationInterfaceState
 import AsyncDisplayKit
 import AccountContext
 
-open class ChatTitleAccessoryPanelNode: ASDisplayNode {
+open class LegacyChatTitleAccessoryPanelNode: ASDisplayNode {
     public typealias LayoutResult = ChatControllerCustomNavigationPanelNodeLayoutResult
     
     open var interfaceInteraction: ChatPanelInterfaceInteraction?
@@ -19,11 +19,11 @@ open class ChatTitleAccessoryPanelNode: ASDisplayNode {
 }
 
 public final class LegacyChatHeaderPanelComponent: Component {
-    public let panelNode: ChatTitleAccessoryPanelNode
+    public let panelNode: LegacyChatTitleAccessoryPanelNode
     public let interfaceState: ChatPresentationInterfaceState
     
     public init(
-        panelNode: ChatTitleAccessoryPanelNode,
+        panelNode: LegacyChatTitleAccessoryPanelNode,
         interfaceState: ChatPresentationInterfaceState
     ) {
         self.panelNode = panelNode

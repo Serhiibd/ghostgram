@@ -16,9 +16,6 @@ public final class MiscSettingsManager {
     
     private let defaults = UserDefaults.standard
     
-    // Prevents recursive mutual-exclusion calls
-    private var isApplyingMutualExclusion = false
-    
     // MARK: - Main Toggle
     
     public var isEnabled: Bool {
@@ -68,17 +65,12 @@ public final class MiscSettingsManager {
     }
     
     /// Always appear as online.
-    /// Enabling this automatically disables Ghost Mode (mutual exclusion).
+    /// NOTE: Ghost Mode features dynamically yield to Always Online via their
+    /// `shouldAlwaysBeOnline` check, so no permanent disabling is needed here.
     public var alwaysOnline: Bool {
         get { defaults.bool(forKey: Keys.alwaysOnline) }
         set {
             defaults.set(newValue, forKey: Keys.alwaysOnline)
-            if newValue && !isApplyingMutualExclusion {
-                // Always Online ON → disable Ghost Mode
-                isApplyingMutualExclusion = true
-                GhostModeManager.shared.disableForMutualExclusion()
-                isApplyingMutualExclusion = false
-            }
             notifySettingsChanged()
         }
     }
@@ -122,7 +114,7 @@ public final class MiscSettingsManager {
         disableViewOnceAutoDelete  = true
         bypassScreenshotProtection = true
         blockAds                   = true
-        alwaysOnline               = true   // setter handles mutual exclusion
+        alwaysOnline               = true
     }
     
     public func disableAll() {
@@ -136,12 +128,10 @@ public final class MiscSettingsManager {
     // MARK: - Internal mutual exclusion (called by GhostModeManager)
     
     /// Called by GhostModeManager when Ghost Mode is turned on.
-    /// Disables Always Online without triggering mutual exclusion back.
+    /// Disables Always Online so the two modes don't coexist in the UI.
     public func disableAlwaysOnlineForMutualExclusion() {
-        isApplyingMutualExclusion = true
         defaults.set(false, forKey: Keys.alwaysOnline)
         notifySettingsChanged()
-        isApplyingMutualExclusion = false
     }
     
     // MARK: - Notification

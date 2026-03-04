@@ -893,7 +893,8 @@ extension ChatControllerImpl {
                                 peerVerification = cachedChannelData.verification
                             }
                         }
-                        copyProtectionEnabled = peer.isCopyProtectionEnabled
+                        // GHOSTGRAM: Bypass copy protection if enabled in Misc settings
+                        copyProtectionEnabled = MiscSettingsManager.shared.shouldBypassCopyProtection ? false : peer.isCopyProtectionEnabled
                         if let cachedGroupData = peerView.cachedData as? CachedGroupData {
                             if !cachedGroupData.botInfos.isEmpty {
                                 hasBots = true
@@ -1371,7 +1372,8 @@ extension ChatControllerImpl {
                     var alwaysShowGiftButton = false
                     var disallowedGifts: TelegramDisallowedGifts?
                     if let peer = peerView.peers[peerView.peerId] {
-                        copyProtectionEnabled = peer.isCopyProtectionEnabled
+                        // GHOSTGRAM: Bypass copy protection if enabled in Misc settings
+                        copyProtectionEnabled = MiscSettingsManager.shared.shouldBypassCopyProtection ? false : peer.isCopyProtectionEnabled
                         if let cachedData = peerView.cachedData as? CachedUserData {
                             contactStatus = ChatContactStatus(canAddContact: !peerView.peerIsContact, peerStatusSettings: cachedData.peerStatusSettings, invitedBy: nil, managingBot: managingBot)
                             if case let .known(value) = cachedData.businessIntro {

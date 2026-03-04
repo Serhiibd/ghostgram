@@ -8,7 +8,8 @@ import TelegramPresentationData
 import ProgressNavigationButtonNode
 import AccountContext
 import SearchUI
-import ChatListUI
+import func ChatListUI.chatListFilterItems
+import enum ChatListUI.ChatListContainerNodeFilter
 import CounterControllerTitleView
 import ChatListFilterTabContainerNode
 

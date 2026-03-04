@@ -3,9 +3,14 @@ load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
 swift_library(
     name = "ChatListUI",
     module_name = "ChatListUI",
-    srcs = glob([
-        "Sources/**/*.swift",
-    ]),
+    srcs = glob(
+        [
+            "Sources/**/*.swift",
+        ],
+        exclude = [
+            "Sources/ChatListFilterTabContainerNode.swift",
+        ],
+    ),
     copts = [
         "-warnings-as-errors",
     ],

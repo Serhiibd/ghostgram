@@ -232,6 +232,9 @@ class BazelCommandLine:
         combined_arguments += self.common_debug_args
         combined_arguments += self.get_define_arguments()
 
+        if self.disable_provisioning_profiles:
+            combined_arguments += ['--//Telegram:disableProvisioningProfiles']
+
         if self.remote_cache is not None:
             combined_arguments += [
                 '--remote_cache={}'.format(self.remote_cache),
@@ -559,6 +562,8 @@ def generate_project(bazel, arguments):
         disable_extensions = arguments.disableExtensions
     if arguments.disableProvisioningProfiles is not None:
         disable_provisioning_profiles = arguments.disableProvisioningProfiles
+    if disable_provisioning_profiles:
+        bazel_command_line.set_disable_provisioning_profiles()
     if arguments.projectIncludeRelease is not None:
         project_include_release = arguments.projectIncludeRelease
     if arguments.xcodeManagedCodesigning is not None and arguments.xcodeManagedCodesigning == True:

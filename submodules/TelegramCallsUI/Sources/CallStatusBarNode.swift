@@ -22,7 +22,7 @@ private let pink = UIColor(rgb: 0xef436c)
 private let latePurple = UIColor(rgb: 0xaa56a6)
 private let latePink = UIColor(rgb: 0xef476f)
 
-private func textForTimeout(value: Int32) -> String {
+private func callStatusBarTextForTimeout(value: Int32) -> String {
     if value < 3600 {
         let minutes = value / 60
         let seconds = value % 60
@@ -498,9 +498,9 @@ public class CallStatusBarNodeImpl: CallStatusBarNode {
                     timerText = presentationData.strings.VoiceChat_StatusStartsIn(scheduledTimeIntervalString(strings: presentationData.strings, value: elapsedTime)).string
                 } else if elapsedTime < 0 {
                     isLate = true
-                    timerText = presentationData.strings.VoiceChat_StatusLateBy(textForTimeout(value: abs(elapsedTime))).string
+                    timerText = presentationData.strings.VoiceChat_StatusLateBy(callStatusBarTextForTimeout(value: abs(elapsedTime))).string
                 } else {
-                    timerText = presentationData.strings.VoiceChat_StatusStartsIn(textForTimeout(value: elapsedTime)).string
+                    timerText = presentationData.strings.VoiceChat_StatusStartsIn(callStatusBarTextForTimeout(value: elapsedTime)).string
                 }
                 segments.append(.text(0, NSAttributedString(string: timerText, font: textFont, textColor: textColor)))
             } else if let membersCount = membersCount {

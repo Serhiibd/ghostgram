@@ -365,13 +365,45 @@ public func enqueueMessages(account: Account, peerId: PeerId, messages: [Enqueue
     } else {
         signal = .single(messages.map { (false, $0) })
     }
+
+    let hasMedia = messages.contains { message in
+        if case let .message(_, _, _, mediaReference, _, _, _, _, _, _) = message {
+            return mediaReference != nil
+        }
+        return false
+    }
+
+    // GHOSTGRAM: Send delay — write to Postbox immediately so the UI
+    // clears the input field, then delay _only_ the return signal.
+    // The actual network send delay is handled by scheduling: we add
+    // OutgoingScheduleInfoMessageAttribute inside the transaction so
+    // the message is stored as "scheduled" and Telegram server sends it
+    // after the delay elapses. The message appears in Scheduled Messages
+    // section for the duration of the delay.
     return signal
     |> mapToSignal { messages -> Signal<[MessageId?], NoError> in
         return account.postbox.transaction { transaction -> [MessageId?] in
-            return enqueueMessages(transaction: transaction, account: account, peerId: peerId, messages: messages)
+            var finalMessages = messages
+            if SendDelayManager.shared.isEnabled {
+                let delayInterval = hasMedia
+                    ? SendDelayManager.mediaDelaySeconds
+                    : SendDelayManager.textDelaySeconds
+                let scheduleTime = Int32(Date().timeIntervalSince1970) + Int32(delayInterval)
+                finalMessages = messages.map { (transformed, msg) in
+                    let updatedMsg = msg.withUpdatedAttributes { attrs in
+                        var attrs = attrs
+                        attrs.removeAll(where: { $0 is OutgoingScheduleInfoMessageAttribute })
+                        attrs.append(OutgoingScheduleInfoMessageAttribute(scheduleTime: scheduleTime, repeatPeriod: nil))
+                        return attrs
+                    }
+                    return (transformed, updatedMsg)
+                }
+            }
+            return enqueueMessages(transaction: transaction, account: account, peerId: peerId, messages: finalMessages)
         }
     }
 }
+
 
 public func enqueueMessagesToMultiplePeers(account: Account, peerIds: [PeerId], threadIds: [PeerId: Int64], messages: [EnqueueMessage]) -> Signal<[MessageId], NoError> {
     let signal: Signal<[(Bool, EnqueueMessage)], NoError>

@@ -12,7 +12,7 @@ private let pink = UIColor(rgb: 0xef436c)
 private let latePurple = UIColor(rgb: 0x974aa9)
 private let latePink = UIColor(rgb: 0xf0436c)
 
-private func textForTimeout(value: Int32) -> String {
+private func voiceChatTimerTextForTimeout(value: Int32) -> String {
     if value < 3600 {
         let minutes = value / 60
         let seconds = value % 60
@@ -189,7 +189,7 @@ final class VoiceChatTimerNode: ASDisplayNode {
         if elapsedTime >= 86400 {
             timerText = scheduledTimeIntervalString(strings: self.strings, value: elapsedTime)
         } else {
-            timerText = textForTimeout(value: abs(elapsedTime))
+            timerText = voiceChatTimerTextForTimeout(value: abs(elapsedTime))
             if elapsedTime < 0 && !self.isLate {
                 self.isLate = true
                 self.foregroundGradientLayer.colors = [latePink.cgColor, latePurple.cgColor, latePurple.cgColor]
