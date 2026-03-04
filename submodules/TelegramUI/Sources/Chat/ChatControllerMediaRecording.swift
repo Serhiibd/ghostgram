@@ -208,7 +208,16 @@ extension ChatControllerImpl {
                         }
                         
                         var usedCorrelationId = false
-                        if scheduleTime == nil, shouldAnimateMessageTransition, let extractedView = videoController.extractVideoSnapshot() {
+                        
+                        // GHOSTGRAM: When SendDelayManager is active the message lands in
+                        // ScheduledLocal namespace, NOT in the main history. This means
+                        // setupSendActionOnViewUpdate's callback would NEVER fire (it waits
+                        // for the message to appear in the normal chat view), causing the
+                        // video recorder overlay to stay on screen and the app to freeze.
+                        // Solution: dismiss the recorder immediately and skip the animation.
+                        let isSendDelayActive = SendDelayManager.shared.isEnabled
+                        
+                        if !isSendDelayActive, scheduleTime == nil, shouldAnimateMessageTransition, let extractedView = videoController.extractVideoSnapshot() {
                             usedCorrelationId = true
                             self.chatDisplayNode.messageTransitionNode.add(correlationId: correlationId, source:  .videoMessage(ChatMessageTransitionNodeImpl.Source.VideoMessage(view: extractedView)), initiated: { [weak videoController, weak self] in
                                 videoController?.hideVideoSnapshot()
@@ -221,15 +230,25 @@ extension ChatControllerImpl {
                             self.videoRecorder.set(.single(nil))
                         }
                         
-                        self.chatDisplayNode.setupSendActionOnViewUpdate({ [weak self] in
-                            if let self {
-                                self.chatDisplayNode.collapseInput()
-                                
-                                self.updateChatPresentationInterfaceState(animated: true, interactive: false, {
-                                    $0.updatedInterfaceState { $0.withUpdatedReplyMessageSubject(nil).withUpdatedSendMessageEffect(nil).withUpdatedMediaDraftState(nil).withUpdatedPostSuggestionState(nil) }
-                                })
-                            }
-                        }, usedCorrelationId ? correlationId : nil)
+                        if isSendDelayActive {
+                            // Dismiss recorder and clear state immediately without waiting
+                            // for the scheduled message to appear in history.
+                            self.chatDisplayNode.collapseInput()
+                            self.updateChatPresentationInterfaceState(animated: true, interactive: false, {
+                                $0.updatedInterfaceState { $0.withUpdatedReplyMessageSubject(nil).withUpdatedSendMessageEffect(nil).withUpdatedMediaDraftState(nil).withUpdatedPostSuggestionState(nil) }
+                            })
+                        } else {
+                            self.chatDisplayNode.setupSendActionOnViewUpdate({ [weak self] in
+                                if let self {
+                                    self.chatDisplayNode.collapseInput()
+                                    
+                                    self.updateChatPresentationInterfaceState(animated: true, interactive: false, {
+                                        $0.updatedInterfaceState { $0.withUpdatedReplyMessageSubject(nil).withUpdatedSendMessageEffect(nil).withUpdatedMediaDraftState(nil).withUpdatedPostSuggestionState(nil) }
+                                    })
+                                }
+                            }, usedCorrelationId ? correlationId : nil)
+                        }
+
                         
                         let messages = [message]
                         let transformedMessages: [EnqueueMessage]

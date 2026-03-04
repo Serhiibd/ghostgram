@@ -6695,20 +6695,10 @@ private final class ChatListLocationContext {
                         let resource = representation.resource
                         let account = nextAccount.account
                         
-                        // Try to read cached data first; if not ready, trigger a fetch then watch for completion
-                        self.accountSwitcherAvatarDisposable = (account.postbox.mediaBox
-                            .resourceData(resource)
-                            |> deliverOnMainQueue)
-                            .start(next: { data in
-                                if data.complete, let uiImage = UIImage(contentsOfFile: data.path) {
-                                    buildButton(uiImage)
-                                }
-                            }, completed: {
-                                // If resource was never complete after signal ended, show placeholder
-                                buildButton(nil)
-                            })
-                        
-                        // Trigger the actual network fetch so mediaBox populates the resource
+                        // GHOSTGRAM: Fetch first so the resource is populated by the time
+                        // resourceData emits a complete result. The old order (subscribe→fetch)
+                        // had a race where `completed` fired before data arrived, causing
+                        // buildButton(nil) to be called and the avatar to never show.
                         if let peerReference = PeerReference(nextPeer) {
                             let _ = fetchedMediaResource(
                                 mediaBox: account.postbox.mediaBox,
@@ -6717,6 +6707,19 @@ private final class ChatListLocationContext {
                                 reference: .avatar(peer: peerReference, resource: resource)
                             ).start()
                         }
+                        
+                        self.accountSwitcherAvatarDisposable = (account.postbox.mediaBox
+                            .resourceData(resource)
+                            |> filter { $0.complete }
+                            |> take(1)
+                            |> deliverOnMainQueue)
+                            .start(next: { data in
+                                if let uiImage = UIImage(contentsOfFile: data.path) {
+                                    buildButton(uiImage)
+                                } else {
+                                    buildButton(nil)
+                                }
+                            })
                     } else {
                         // No photo — show placeholder
                         buildButton(nil)

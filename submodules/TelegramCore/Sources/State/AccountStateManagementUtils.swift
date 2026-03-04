@@ -4378,9 +4378,18 @@ func replayFinalState(
                 
                 // ANTI-DELETE: Mark messages as deleted instead of removing them
                 if AntiDeleteManager.shared.isEnabled {
+                    // GHOSTGRAM: Collect non-Cloud IDs (scheduled/local) that must be
+                    // physically removed even when AntiDelete is on. Without this, sent
+                    // scheduled messages stay stuck in the scheduled list forever because
+                    // the `continue` guard skips them but nothing else removes them.
+                    var nonCloudIdsToDelete: [MessageId] = []
+                    
                     for messageId in ids {
                         // Skip scheduled/local/quick-reply messages — they get deleted when sent, not by the remote peer
-                        guard messageId.namespace == Namespaces.Message.Cloud else { continue }
+                        guard messageId.namespace == Namespaces.Message.Cloud else {
+                            nonCloudIdsToDelete.append(messageId)
+                            continue
+                        }
                         
                         // Mark as deleted for icon display
                         AntiDeleteManager.shared.markAsDeleted(peerId: messageId.peerId.toInt64(), messageId: messageId.id)
@@ -4394,6 +4403,13 @@ func replayFinalState(
                             let storeForwardInfo = currentMessage.forwardInfo.flatMap(StoreMessageForwardInfo.init)
                             // Keep original text, no prefix needed - icon will show deleted status
                             return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: currentMessage.tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: storeForwardInfo, authorId: currentMessage.author?.id, text: currentMessage.text, attributes: attributes, media: currentMessage.media))
+                        })
+                    }
+                    
+                    // Physically remove scheduled/local messages that were skipped above
+                    if !nonCloudIdsToDelete.isEmpty {
+                        _internal_deleteMessages(transaction: transaction, mediaBox: mediaBox, ids: nonCloudIdsToDelete, manualAddMessageThreadStatsDifference: { id, add, remove in
+                            addMessageThreadStatsDifference(threadKey: id, remove: remove, addedMessagePeer: nil, addedMessageId: nil, isOutgoing: false)
                         })
                     }
                 } else {
