@@ -130,6 +130,7 @@ public class ChatMessageRestrictedBubbleContentNode: ChatMessageBubbleContentNod
                         context: item.context,
                         presentationData: item.presentationData,
                         edited: edited,
+                        isDeleted: message.ghostgramIsDeleted,
                         impressionCount: viewCount,
                         dateText: dateText,
                         type: statusType,

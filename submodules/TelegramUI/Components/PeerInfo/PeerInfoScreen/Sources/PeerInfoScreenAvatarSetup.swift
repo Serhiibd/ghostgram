@@ -463,7 +463,7 @@ extension PeerInfoScreenImpl {
                         case .accept:
                             (strongSelf.parentController?.topViewController as? ViewController)?.present(UndoOverlayController(presentationData: strongSelf.presentationData, content: .image(image: image, title: strongSelf.presentationData.strings.Conversation_SuggestedPhotoSuccess, text: strongSelf.presentationData.strings.Conversation_SuggestedPhotoSuccessText, round: true, undoText: nil), elevatedLayout: false, animateInAsReplacement: true, action: { [weak self] action in
                                 if case .info = action {
-                                    self?.parentController?.openSettings()
+                                    self?.parentController?.openSettings(edit: false)
                                 }
                                 return false
                             }), in: .current)
@@ -662,7 +662,7 @@ extension PeerInfoScreenImpl {
                         case .accept:
                             (strongSelf.parentController?.topViewController as? ViewController)?.present(UndoOverlayController(presentationData: strongSelf.presentationData, content: .image(image: image, title: strongSelf.presentationData.strings.Conversation_SuggestedVideoSuccess, text: strongSelf.presentationData.strings.Conversation_SuggestedVideoSuccessText, round: true, undoText: nil), elevatedLayout: false, animateInAsReplacement: true, action: { [weak self] action in
                                 if case .info = action {
-                                    self?.parentController?.openSettings()
+                                    self?.parentController?.openSettings(edit: false)
                                 }
                                 return false
                             }), in: .current)
@@ -874,7 +874,7 @@ extension PeerInfoScreenImpl {
                         case .accept:
                             (strongSelf.parentController?.topViewController as? ViewController)?.present(UndoOverlayController(presentationData: strongSelf.presentationData, content: .image(image: image, title: strongSelf.presentationData.strings.Conversation_SuggestedVideoSuccess, text: strongSelf.presentationData.strings.Conversation_SuggestedVideoSuccessText, round: true, undoText: nil), elevatedLayout: false, animateInAsReplacement: true, action: { [weak self] action in
                                 if case .info = action {
-                                    self?.parentController?.openSettings()
+                                    self?.parentController?.openSettings(edit: false)
                                 }
                                 return false
                             }), in: .current)

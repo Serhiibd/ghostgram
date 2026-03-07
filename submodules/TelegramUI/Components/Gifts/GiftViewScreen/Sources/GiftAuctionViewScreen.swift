@@ -164,7 +164,7 @@ private final class GiftAuctionViewSheetContent: CombinedComponent {
                         }).shuffled().prefix(5))
                         self.previewSymbols = randomSymbols
                                 
-                        for case let .model(_, file, _) in self.previewModels where !self.fetchedFiles.contains(file.fileId.id) {
+                        for case let .model(_, file, _, _) in self.previewModels where !self.fetchedFiles.contains(file.fileId.id) {
                             self.disposables.add(freeMediaFileResourceInteractiveFetched(account: context.account, userLocation: .other, fileReference: .standalone(media: file), resource: file.resource).start())
                             self.fetchedFiles.insert(file.fileId.id)
                         }
@@ -725,9 +725,9 @@ private final class GiftAuctionViewSheetContent: CombinedComponent {
             if let genericGift {
                 var attributes: [StarGift.UniqueGift.Attribute] = []
                 if state.previewModelIndex == -1 {
-                    attributes.append(.model(name: "", file: genericGift.file, rarity: 0))
+                    attributes.append(.model(name: "", file: genericGift.file, rarity: .permille(0), crafted: false))
                     if let background = genericGift.background {
-                        attributes.append(.backdrop(name: "", id: 0, innerColor: background.centerColor, outerColor: background.edgeColor, patternColor: 0, textColor: 0, rarity: 0))
+                        attributes.append(.backdrop(name: "", id: 0, innerColor: background.centerColor, outerColor: background.edgeColor, patternColor: 0, textColor: 0, rarity: .permille(0)))
                     }
                 } else if !state.previewModels.isEmpty {
                     attributes.append(state.previewModels[state.previewModelIndex])
@@ -1082,7 +1082,7 @@ private final class GiftAuctionViewSheetContent: CombinedComponent {
                         guard let state, let attributes = state.giftUpgradeAttributes else {
                             return
                         }
-                        let variantsController = component.context.sharedContext.makeGiftUpgradeVariantsScreen(context: component.context, gift: .generic(gift), attributes: attributes, selectedAttributes: nil, focusedAttribute: nil)
+                        let variantsController = component.context.sharedContext.makeGiftUpgradeVariantsScreen(context: component.context, gift: .generic(gift), crafted: false, attributes: attributes, selectedAttributes: nil, focusedAttribute: nil)
                         environment.controller()?.push(variantsController)
                     }, animateScale: false),
                     availableSize: CGSize(width: context.availableSize.width - 64.0, height: context.availableSize.height),

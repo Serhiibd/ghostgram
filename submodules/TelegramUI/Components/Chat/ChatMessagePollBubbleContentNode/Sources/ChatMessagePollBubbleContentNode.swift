@@ -1117,6 +1117,7 @@ public class ChatMessagePollBubbleContentNode: ChatMessageBubbleContentNode {
                         context: item.context,
                         presentationData: item.presentationData,
                         edited: edited,
+                        isDeleted: item.topMessage.ghostgramIsDeleted,
                         impressionCount: viewCount,
                         dateText: dateText,
                         type: statusType,

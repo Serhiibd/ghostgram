@@ -537,8 +537,8 @@ final class GiftStoreScreenComponent: Component {
                 } else {
                     return false
                 }
-            }.sorted(by: { lhs, rhs in
-                if case let .model(_, lhsFile, _) = lhs, case let .model(_, rhsFile, _) = rhs, let lhsCount = self.state?.starGiftsState?.attributeCount[.model(lhsFile.fileId.id)], let rhsCount = self.state?.starGiftsState?.attributeCount[.model(rhsFile.fileId.id)] {
+            }.sorted(by: { (lhs: StarGift.UniqueGift.Attribute, rhs: StarGift.UniqueGift.Attribute) in
+                if case let .model(_, lhsFile, _, _) = lhs, case let .model(_, rhsFile, _, _) = rhs, let lhsCount = self.state?.starGiftsState?.attributeCount[.model(lhsFile.fileId.id)], let rhsCount = self.state?.starGiftsState?.attributeCount[.model(rhsFile.fileId.id)] {
                     return lhsCount > rhsCount
                 } else {
                     return false
@@ -1231,7 +1231,7 @@ final class GiftStoreScreenComponent: Component {
             self.context = context
             self.peerId = peerId
             self.gift = gift
-            self.starGiftsContext = ResaleGiftsContext(account: context.account, giftId: gift.id)
+            self.starGiftsContext = ResaleGiftsContext(account: context.account, giftId: gift.id, forCrafting: false)
             
             super.init()
             

@@ -1,3 +1,4 @@
+import SGSimpleSettings
 import Foundation
 import UIKit
 import Display
@@ -599,7 +600,7 @@ private final class VideoMessageCameraScreenComponent: CombinedComponent {
                         size: CGSize(width: 40.0, height: 40.0),
                         cornerRadius: 40.0 * 0.5,
                         isDark: environment.theme.overallDarkAppearance,
-                        tintColor: .init(kind: .panel, color: environment.theme.chat.inputPanel.inputBackgroundColor.withMultipliedAlpha(0.7))
+                        tintColor: .init(kind: .panel)
                     ),
                     availableSize: CGSize(width: 40.0, height: 40.0),
                     transition: .immediate
@@ -702,7 +703,7 @@ private final class VideoMessageCameraScreenComponent: CombinedComponent {
                             size: CGSize(width: 40.0, height: 40.0),
                             cornerRadius: 40.0 * 0.5,
                             isDark: environment.theme.overallDarkAppearance,
-                            tintColor: .init(kind: .panel, color: environment.theme.chat.inputPanel.inputBackgroundColor.withMultipliedAlpha(0.7))
+                            tintColor: .init(kind: .panel)
                         ),
                         availableSize: CGSize(width: 40.0, height: 40.0),
                         transition: .immediate
@@ -734,7 +735,7 @@ private final class VideoMessageCameraScreenComponent: CombinedComponent {
                                             size: CGSize(width: 40.0, height: 40.0),
                                             cornerRadius: 40.0 * 0.5,
                                             isDark: environment.theme.overallDarkAppearance,
-                                            tintColor: .init(kind: .panel, color: environment.theme.chat.inputPanel.inputBackgroundColor.withMultipliedAlpha(0.7))
+                                            tintColor: .init(kind: .panel)
                                         )
                                     )
                                 ),
@@ -779,7 +780,7 @@ private final class VideoMessageCameraScreenComponent: CombinedComponent {
                                         size: CGSize(width: 40.0, height: 40.0),
                                         cornerRadius: 40.0 * 0.5,
                                         isDark: environment.theme.overallDarkAppearance,
-                                        tintColor: .init(kind: .panel, color: environment.theme.chat.inputPanel.inputBackgroundColor.withMultipliedAlpha(0.7))
+                                        tintColor: .init(kind: .panel)
                                     ))
                                 ),
                                 AnyComponentWithIdentity(
@@ -947,7 +948,8 @@ public class VideoMessageCameraScreen: ViewController {
             self.previewContainerView.addSubview(self.previewContainerContentView)
                         
             let isDualCameraEnabled = Camera.isDualCameraSupported(forRoundVideo: true)
-            let isFrontPosition = "".isEmpty
+            // MARK: Swiftgram
+            let isFrontPosition = !SGSimpleSettings.shared.startTelescopeWithRearCam
             
             self.mainPreviewView = CameraSimplePreviewView(frame: .zero, main: true, roundVideo: true)
             self.additionalPreviewView = CameraSimplePreviewView(frame: .zero, main: false, roundVideo: true)
@@ -1649,7 +1651,7 @@ public class VideoMessageCameraScreen: ViewController {
     
     private var validLayout: ContainerViewLayout?
     
-    fileprivate var camera: Camera? {
+    public var camera: Camera? {
         return self.node.camera
     }
     

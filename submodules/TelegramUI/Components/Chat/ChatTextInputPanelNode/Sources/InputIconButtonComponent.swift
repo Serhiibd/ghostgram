@@ -6,6 +6,14 @@ import ComponentFlow
 import GlassBackgroundComponent
 import AppBundle
 
+private func neutralInputButtonGlassTint(theme: PresentationTheme) -> GlassBackgroundView.TintColor {
+    if theme.overallDarkAppearance {
+        return .init(kind: .custom, color: UIColor(white: 0.0, alpha: 0.38))
+    } else {
+        return .init(kind: .custom, color: UIColor(white: 1.0, alpha: 0.68))
+    }
+}
+
 final class InputIconButtonComponent: Component {
     let theme: PresentationTheme
     let name: String
@@ -87,7 +95,7 @@ final class InputIconButtonComponent: Component {
             }
             
             transition.setFrame(view: self.backgroundView, frame: CGRect(origin: CGPoint(), size: size))
-            self.backgroundView.update(size: size, cornerRadius: size.height * 0.5, isDark: component.theme.overallDarkAppearance, tintColor: .init(kind: .panel, color: component.theme.chat.inputPanel.inputBackgroundColor.withMultipliedAlpha(0.7)), isInteractive: true, transition: transition)
+            self.backgroundView.update(size: size, cornerRadius: size.height * 0.5, isDark: component.theme.overallDarkAppearance, tintColor: neutralInputButtonGlassTint(theme: component.theme), isInteractive: true, transition: transition)
             
             self.button.frame = CGRect(origin: CGPoint(), size: size)
             

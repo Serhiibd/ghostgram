@@ -6,15 +6,32 @@ import Postbox
 import TelegramCore
 import TelegramPresentationData
 import TelegramStringFormatting
+import AccountContext
 
 private let titleFont = Font.medium(15.0)
 private let dateFont = Font.regular(14.0)
 
-final class GalleryTitleView: UIView, NavigationBarTitleView {    
+public final class GalleryTitleView: UIView, NavigationBarTitleView {    
+    public struct Content {
+        let message: EngineMessage?
+        let title: String?
+        let action: (() -> Void)?
+        
+        init(message: EngineMessage, title: String?, action: (() -> Void)?) {
+            self.message = message
+            self.title = title
+            self.action = action
+        }
+    }
+    
     private let authorNameNode: ASTextNode
     private let dateNode: ASTextNode
+    private var context: AccountContext?
+    private var presentationDataValue: PresentationData?
+    private var contentAction: (() -> Void)?
+    private var tapRecognizer: UITapGestureRecognizer?
     
-    var requestUpdate: ((ContainedViewLayoutTransition) -> Void)?
+    public var requestUpdate: ((ContainedViewLayoutTransition) -> Void)?
     
     override init(frame: CGRect) {
         self.authorNameNode = ASTextNode()
@@ -31,6 +48,12 @@ final class GalleryTitleView: UIView, NavigationBarTitleView {
         self.addSubnode(self.dateNode)
     }
     
+    convenience init(context: AccountContext, presentationData: PresentationData) {
+        self.init(frame: CGRect())
+        self.context = context
+        self.presentationDataValue = presentationData
+    }
+    
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
@@ -43,7 +66,37 @@ final class GalleryTitleView: UIView, NavigationBarTitleView {
         self.dateNode.attributedText = NSAttributedString(string: dateText, font: dateFont, textColor: .white)
     }
     
-    func updateLayout(availableSize: CGSize, transition: ContainedViewLayoutTransition) -> CGSize {
+    func setContent(content: Content?) {
+        self.contentAction = content?.action
+        
+        if self.tapRecognizer == nil {
+            let tapRecognizer = UITapGestureRecognizer(target: self, action: #selector(self.contentTapped))
+            self.addGestureRecognizer(tapRecognizer)
+            self.tapRecognizer = tapRecognizer
+        }
+        self.tapRecognizer?.isEnabled = content?.action != nil
+        
+        if let content, let message = content.message, let context = self.context, let presentationData = self.presentationDataValue {
+            self.setMessage(message._asMessage(), presentationData: presentationData, accountPeerId: context.account.peerId)
+            if let title = content.title {
+                self.authorNameNode.attributedText = NSAttributedString(string: title, font: titleFont, textColor: .white)
+            }
+        } else if let title = content?.title {
+            self.authorNameNode.attributedText = NSAttributedString(string: title, font: titleFont, textColor: .white)
+            self.dateNode.attributedText = nil
+        } else {
+            self.authorNameNode.attributedText = nil
+            self.dateNode.attributedText = nil
+        }
+        
+        self.requestUpdate?(.immediate)
+    }
+    
+    @objc private func contentTapped() {
+        self.contentAction?()
+    }
+    
+    public func updateLayout(availableSize: CGSize, transition: ContainedViewLayoutTransition) -> CGSize {
         let size = availableSize
         
         let leftInset: CGFloat = 0.0
@@ -63,7 +116,7 @@ final class GalleryTitleView: UIView, NavigationBarTitleView {
         return availableSize
     }
     
-    func animateLayoutTransition() {
+    public func animateLayoutTransition() {
         
     }
 }

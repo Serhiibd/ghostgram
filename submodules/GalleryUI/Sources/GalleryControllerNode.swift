@@ -57,7 +57,7 @@ open class GalleryControllerNode: ASDisplayNode, ASScrollViewDelegate, ASGesture
         }
     }
     
-    public init(context: AccountContext, controllerInteraction: GalleryControllerInteraction, pageGap: CGFloat = 20.0, disableTapNavigation: Bool = false) {
+    public init(context: AccountContext, controllerInteraction: GalleryControllerInteraction, titleView: UIView? = nil, pageGap: CGFloat = 20.0, disableTapNavigation: Bool = false) {
         self.context = context
         self.backgroundNode = ASDisplayNode()
         self.backgroundNode.backgroundColor = UIColor.black

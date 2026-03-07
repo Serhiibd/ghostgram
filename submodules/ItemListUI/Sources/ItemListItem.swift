@@ -33,6 +33,12 @@ public extension ItemListItem {
 
 public protocol ItemListItemNode {
     var tag: ItemListItemTag? { get }
+    func displayHighlight()
+}
+
+public extension ItemListItemNode {
+    func displayHighlight() {
+    }
 }
 
 public protocol ItemListItemFocusableNode {

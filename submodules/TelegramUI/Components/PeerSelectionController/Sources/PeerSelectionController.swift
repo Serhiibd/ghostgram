@@ -8,10 +8,8 @@ import TelegramPresentationData
 import ProgressNavigationButtonNode
 import AccountContext
 import SearchUI
-import func ChatListUI.chatListFilterItems
-import enum ChatListUI.ChatListContainerNodeFilter
+import ChatListUI
 import CounterControllerTitleView
-import ChatListFilterTabContainerNode
 
 public final class PeerSelectionControllerImpl: ViewController, PeerSelectionController {
     private let context: AccountContext
@@ -70,6 +68,7 @@ public final class PeerSelectionControllerImpl: ViewController, PeerSelectionCon
     let multipleSelectionLimit: Int32?
     private let hasCreation: Bool
     let immediatelyActivateMultipleSelection: Bool
+    private let initialForwardOptionsState: ChatInterfaceForwardOptionsState?
     
     override public var _presentedInModal: Bool {
         get {
@@ -107,6 +106,7 @@ public final class PeerSelectionControllerImpl: ViewController, PeerSelectionCon
         self.createNewGroup = params.createNewGroup
         self.pretendPresentedInModal = params.pretendPresentedInModal
         self.forwardedMessageIds = params.forwardedMessageIds
+        self.initialForwardOptionsState = params.initialForwardOptionsState
         self.hasTypeHeaders = params.hasTypeHeaders
         self.selectForumThreads = params.selectForumThreads
         self.requestPeerType = params.requestPeerType
@@ -259,7 +259,7 @@ public final class PeerSelectionControllerImpl: ViewController, PeerSelectionCon
     override public func loadDisplayNode() {
         self.navigationBar?.secondaryContentHeight = 44.0 + 10.0
         
-        self.displayNode = PeerSelectionControllerNode(context: self.context, controller: self, presentationData: self.presentationData, filter: self.filter, forumPeerId: self.forumPeerId, hasFilters: self.hasFilters, hasChatListSelector: self.hasChatListSelector, hasContactSelector: self.hasContactSelector, hasGlobalSearch: self.hasGlobalSearch, forwardedMessageIds: self.forwardedMessageIds, hasTypeHeaders: self.hasTypeHeaders, requestPeerType: self.requestPeerType, hasCreation: self.hasCreation, createNewGroup: self.createNewGroup, present: { [weak self] c, a in
+        self.displayNode = PeerSelectionControllerNode(context: self.context, controller: self, presentationData: self.presentationData, filter: self.filter, forumPeerId: self.forumPeerId, hasFilters: self.hasFilters, hasChatListSelector: self.hasChatListSelector, hasContactSelector: self.hasContactSelector, hasGlobalSearch: self.hasGlobalSearch, forwardedMessageIds: self.forwardedMessageIds, initialForwardOptionsState: self.initialForwardOptionsState, hasTypeHeaders: self.hasTypeHeaders, requestPeerType: self.requestPeerType, hasCreation: self.hasCreation, createNewGroup: self.createNewGroup, present: { [weak self] c, a in
             self?.present(c, in: .window(.root), with: a)
         }, presentInGlobalOverlay: { [weak self] c, a in
             self?.presentInGlobalOverlay(c, with: a)
@@ -507,7 +507,7 @@ public final class PeerSelectionControllerImpl: ViewController, PeerSelectionCon
                 wasEmpty = true
             }
    
-            var selectedEntryId = !strongSelf.initializedFilters ? .all : (strongSelf.peerSelectionNode.mainContainerNode?.currentItemFilter ?? .all)
+            var selectedEntryId: ChatListFilterTabEntryId = !strongSelf.initializedFilters ? .all : (strongSelf.peerSelectionNode.mainContainerNode?.currentItemFilter ?? .all)
             var resetCurrentEntry = false
             if !resolvedItems.contains(where: { $0.id == selectedEntryId }) {
                 resetCurrentEntry = true

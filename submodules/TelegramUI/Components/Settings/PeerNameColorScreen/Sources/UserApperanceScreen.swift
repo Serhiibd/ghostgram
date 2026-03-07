@@ -762,9 +762,9 @@ final class UserAppearanceScreenComponent: Component {
                                 slug: slug,
                                 owner: .peerId(component.context.account.peerId),
                                 attributes: [
-                                    .model(name: "", file: file, rarity: 0),
-                                    .pattern(name: "", file: patternFile, rarity: 0),
-                                    .backdrop(name: "", id: 0, innerColor: innerColor, outerColor: outerColor, patternColor: patternColor, textColor: textColor, rarity: 0)
+                                    .model(name: "", file: file, rarity: .permille(0), crafted: false),
+                                    .pattern(name: "", file: patternFile, rarity: .permille(0)),
+                                    .backdrop(name: "", id: 0, innerColor: innerColor, outerColor: outerColor, patternColor: patternColor, textColor: textColor, rarity: .permille(0))
                                 ],
                                 availability: StarGift.UniqueGift.Availability(issued: 0, total: 0),
                                 giftAddress: nil,
@@ -778,7 +778,8 @@ final class UserAppearanceScreenComponent: Component {
                                 themePeerId: nil,
                                 peerColor: nil,
                                 hostPeerId: nil,
-                                minOfferStars: nil
+                                minOfferStars: nil,
+                                craftChancePermille: nil
                             )
                             signal = component.context.engine.accountData.setStarGiftStatus(starGift: gift, expirationDate: emojiStatus.expirationDate)
                         } else {
@@ -1406,7 +1407,7 @@ final class UserAppearanceScreenComponent: Component {
                 }
                 
                 let listTransition = transition.withUserData(ListSectionComponent.TransitionHint(forceUpdate: forceGiftsUpdate))
-                let giftsSectionSize = self.profileGiftsSection.update(
+                let giftsSectionSize: CGSize = self.profileGiftsSection.update(
                     transition: listTransition,
                     component: AnyComponent(ListSectionComponent(
                         theme: environment.theme,
@@ -1442,7 +1443,7 @@ final class UserAppearanceScreenComponent: Component {
                                         var textColor: Int32?
                                         for attribute in gift.attributes {
                                             switch attribute {
-                                            case let .model(_, file, _):
+                                            case let .model(_, file, _, _):
                                                 fileId = file.fileId.id
                                                 self.cachedIconFiles[file.fileId.id] = file
                                             case let .pattern(_, file, _):

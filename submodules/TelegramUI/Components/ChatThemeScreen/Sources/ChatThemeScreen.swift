@@ -976,35 +976,40 @@ private class ChatThemeScreenNode: ViewControllerTracingNode, ASScrollViewDelega
         }
         self.otherButton.addTarget(self, action: #selector(self.otherButtonPressed), forControlEvents: .touchUpInside)
         
-        self.disposable.set(combineLatest(
-            queue: Queue.mainQueue(),
-            self.context.engine.themes.getChatThemes(accountManager: self.context.sharedContext.accountManager),
-            self.uniqueGiftChatThemesContext.state
-            |> mapToSignal { state -> Signal<(UniqueGiftChatThemesContext.State, [EnginePeer.Id: EnginePeer]), NoError> in
-                var peerIds: [EnginePeer.Id] = []
-                for theme in state.themes {
-                    if case let .gift(gift, _) = theme, case let .unique(uniqueGift) = gift, let themePeerId = uniqueGift.themePeerId {
-                        peerIds.append(themePeerId)
-                    }
+        let chatThemesSignal: Signal<[TelegramTheme], NoError> = self.context.engine.themes.getChatThemes(accountManager: self.context.sharedContext.accountManager)
+        let uniqueGiftThemesSignal: Signal<(UniqueGiftChatThemesContext.State, [EnginePeer.Id: EnginePeer]), NoError> = self.uniqueGiftChatThemesContext.state
+        |> mapToSignal { [context] state -> Signal<(UniqueGiftChatThemesContext.State, [EnginePeer.Id: EnginePeer]), NoError> in
+            var peerIds: [EnginePeer.Id] = []
+            for theme in state.themes {
+                if case let .gift(gift, _) = theme, case let .unique(uniqueGift) = gift, let themePeerId = uniqueGift.themePeerId {
+                    peerIds.append(themePeerId)
                 }
-                return combineLatest(
-                    .single(state),
-                    context.engine.data.get(
-                        EngineDataMap(peerIds.map(TelegramEngine.EngineData.Item.Peer.Peer.init))
-                    ) |> map { peers in
-                        var result: [EnginePeer.Id: EnginePeer] = [:]
-                        for peerId in peerIds {
-                            if let maybePeer = peers[peerId], let peer = maybePeer {
-                                result[peerId] = peer
-                            }
+            }
+            return combineLatest(
+                .single(state),
+                context.engine.data.get(
+                    EngineDataMap(peerIds.map(TelegramEngine.EngineData.Item.Peer.Peer.init))
+                ) |> map { peers in
+                    var result: [EnginePeer.Id: EnginePeer] = [:]
+                    for peerId in peerIds {
+                        if let maybePeer = peers[peerId], let peer = maybePeer {
+                            result[peerId] = peer
                         }
-                        return result
                     }
-                )
-            },
+                    return result
+                }
+            )
+        }
+        
+        let combinedSignal: Signal<([TelegramTheme], (UniqueGiftChatThemesContext.State, [EnginePeer.Id: EnginePeer]), ChatTheme?, Bool), NoError> = combineLatest(
+            chatThemesSignal,
+            uniqueGiftThemesSignal,
             self.selectedThemePromise.get(),
             self.isDarkAppearancePromise.get()
-        ).startStrict(next: { [weak self] themes, uniqueGiftChatThemesStateAndPeers, selectedTheme, isDarkAppearance in
+        )
+        |> deliverOnMainQueue
+        
+        let combinedDisposable = combinedSignal.startStrict(next: { [weak self] themes, uniqueGiftChatThemesStateAndPeers, selectedTheme, isDarkAppearance in
             guard let strongSelf = self else {
                 return
             }
@@ -1045,7 +1050,7 @@ private class ChatThemeScreenNode: ViewControllerTracingNode, ASScrollViewDelega
                 var peer: EnginePeer?
                 if case let .unique(uniqueGift) = gift {
                     for attribute in uniqueGift.attributes {
-                        if case let .model(_, file, _) = attribute {
+                        if case let .model(_, file, _, _) = attribute {
                             emojiFile = file
                         }
                     }
@@ -1139,7 +1144,8 @@ private class ChatThemeScreenNode: ViewControllerTracingNode, ASScrollViewDelega
                     }
                 }
             }
-        }))
+        })
+        self.disposable.set(combinedDisposable)
         
         self.switchThemeButton.highligthedChanged = { [weak self] highlighted in
             if let strongSelf = self {

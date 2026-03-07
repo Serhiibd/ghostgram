@@ -64,7 +64,6 @@ func _internal_applyMaxReadIndexInteractively(transaction: Transaction, stateMan
             }
         }
     } else if index.id.peerId.namespace == Namespaces.Peer.CloudUser || index.id.peerId.namespace == Namespaces.Peer.CloudGroup || index.id.peerId.namespace == Namespaces.Peer.CloudChannel {
-        // GHOST MODE: Don't send read receipts (blue checkmarks)
         if !GhostModeManager.shared.shouldHideReadReceipts {
             stateManager.notifyAppliedIncomingReadMessages([index.id])
         }
@@ -167,7 +166,7 @@ func _internal_toggleForumThreadUnreadMarkInteractively(transaction: Transaction
         if peer.isForum {
         } else if peer.isMonoForum {
             if let inputPeer = apiInputPeer(peer), let subPeer = transaction.getPeer(PeerId(threadId)).flatMap(apiInputPeer) {
-                let _ = network.request(Api.functions.messages.markDialogUnread(flags: 1 << 0, parentPeer: inputPeer, peer: .inputDialogPeer(peer: subPeer))).start()
+                let _ = network.request(Api.functions.messages.markDialogUnread(flags: 1 << 0, parentPeer: inputPeer, peer: .inputDialogPeer(.init(peer: subPeer)))).start()
             }
         }
     } else {

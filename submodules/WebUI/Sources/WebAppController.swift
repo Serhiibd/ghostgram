@@ -1,3 +1,6 @@
+import SGConfig
+import SGAPIWebSettings
+import SGLogging
 import Foundation
 import UIKit
 @preconcurrency import WebKit
@@ -250,7 +253,7 @@ public final class WebAppController: ViewController, AttachmentContainable {
         
         private var validLayout: (ContainerViewLayout, CGFloat)?
         
-        init(context: AccountContext, controller: WebAppController) {
+        init(userScripts: [WKUserScript] = [], context: AccountContext, controller: WebAppController) {
             #if DEBUG
             let _ = registeredProtocols
             #endif
@@ -271,12 +274,24 @@ public final class WebAppController: ViewController, AttachmentContainable {
                 self.backgroundColor = self.presentationData.theme.list.plainBackgroundColor
             }
             
+            // MARK: Swiftgram
+            var userScripts: [WKUserScript] = []
+            let globalSGConfig = context.currentAppConfiguration.with({ $0 }).sgWebSettings.global
+            let botIdInt = controller.botId.id._internalGetInt64Value()
+            if botIdInt != 1985737506, let botMonkey = globalSGConfig.botMonkeys.first(where: { $0.botId == botIdInt}) {
+                if !botMonkey.src.isEmpty {
+                    userScripts.append(WKUserScript(source: botMonkey.src, injectionTime: .atDocumentStart, forMainFrameOnly: false))
+                }
+            }
             let webView = WebAppWebView(account: context.account)
+            for userScript in userScripts {
+                webView.configuration.userContentController.addUserScript(userScript)
+            }
             webView.alpha = 0.0
             webView.navigationDelegate = self
             webView.uiDelegate = self
             webView.scrollView.delegate = self.wrappedScrollViewDelegate
-            webView.addObserver(self, forKeyPath: #keyPath(WKWebView.estimatedProgress), options: [], context: nil)
+            webView.addObserver(self, forKeyPath: #keyPath(WKWebView.estimatedProgress), options: [], context: nil as UnsafeMutableRawPointer?)
             webView.tintColor = self.presentationData.theme.rootController.tabBar.iconColor
             webView.handleScriptMessage = { [weak self] message in
                 self?.handleScriptMessage(message)
@@ -290,13 +305,13 @@ public final class WebAppController: ViewController, AttachmentContainable {
                     }
                 }
             }
-            if #available(iOS 13.0, *) {
-                if self.presentationData.theme.overallDarkAppearance {
-                    webView.overrideUserInterfaceStyle = .dark
-                } else {
-                    webView.overrideUserInterfaceStyle = .unspecified
-                }
+            
+            if self.presentationData.theme.overallDarkAppearance {
+                webView.overrideUserInterfaceStyle = UIUserInterfaceStyle.dark
+            } else {
+                webView.overrideUserInterfaceStyle = UIUserInterfaceStyle.unspecified
             }
+            
             self.webView = webView
             
             self.addSubnode(self.backgroundNode)
@@ -1091,6 +1106,9 @@ public final class WebAppController: ViewController, AttachmentContainable {
         private var delayedScriptMessages: [WKScriptMessage] = []
         private func handleScriptMessage(_ message: WKScriptMessage) {
             guard let controller = self.controller else {
+                return
+            }
+            guard message.frameInfo.isMainFrame else {
                 return
             }
             guard let body = message.body as? [String: Any] else {
@@ -2028,12 +2046,10 @@ public final class WebAppController: ViewController, AttachmentContainable {
             self.updateHeaderBackgroundColor(transition: .immediate)
             self.sendThemeChangedEvent()
             
-            if #available(iOS 13.0, *) {
-                if self.presentationData.theme.overallDarkAppearance {
-                    self.webView?.overrideUserInterfaceStyle = .dark
-                } else {
-                    self.webView?.overrideUserInterfaceStyle = .unspecified
-                }
+            if self.presentationData.theme.overallDarkAppearance {
+                self.webView?.overrideUserInterfaceStyle = UIUserInterfaceStyle.dark
+            } else {
+                self.webView?.overrideUserInterfaceStyle = UIUserInterfaceStyle.unspecified
             }
         }
         
@@ -3441,6 +3457,7 @@ public final class WebAppController: ViewController, AttachmentContainable {
     fileprivate let updatedPresentationData: (initial: PresentationData, signal: Signal<PresentationData, NoError>)?
     private var presentationDataDisposable: Disposable?
     
+    private var viewWillDisappearCalled = false
     private var hasSettings = false
     
     public var openUrl: (String, Bool, Bool, @escaping () -> Void) -> Void = { _, _, _, _ in }
@@ -3724,193 +3741,68 @@ public final class WebAppController: ViewController, AttachmentContainable {
             }
         }
         
-        let peerId = self.peerId
-        let botId = self.botId
         
-        let source = self.source
         
         let hasSettings = self.hasSettings
         
-        let activeDownload = WebAppController.activeDownloads.first
-        let activeDownloadProgress: Signal<Double?, NoError>
-        if let activeDownload {
-            activeDownloadProgress = activeDownload.progressSignal
-            |> map(Optional.init)
-            |> mapToThrottled { next -> Signal<Double?, NoError> in
-                return .single(next) |> then(.complete() |> delay(0.2, queue: Queue.mainQueue()))
-            }
-        } else {
-            activeDownloadProgress = .single(nil)
+        var items: [ContextMenuItem] = []
+        
+        if hasSettings {
+            items.append(.action(ContextMenuActionItem(text: presentationData.strings.WebApp_Settings, icon: { theme in
+                return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Settings"), color: theme.contextMenu.primaryColor)
+            }, action: { [weak self] c, _ in
+                c?.dismiss(completion: nil)
+                self?.controllerNode.sendSettingsButtonEvent()
+            })))
         }
         
-        let items = combineLatest(queue: Queue.mainQueue(),
-            context.engine.messages.attachMenuBots() |> take(1),
-            context.engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: self.botId)),
-            context.engine.data.get(TelegramEngine.EngineData.Item.Peer.BotCommands(id: self.botId)),
-            context.engine.data.get(TelegramEngine.EngineData.Item.Peer.BotPrivacyPolicyUrl(id: self.botId)),
-            activeDownloadProgress
-        )
-        |> map { [weak self] attachMenuBots, botPeer, botCommands, privacyPolicyUrl, activeDownloadProgress -> ContextController.Items in
-            var items: [ContextMenuItem] = []
-            
-            if let activeDownload, let progress = activeDownloadProgress {
-                let isActive = progress < 1.0 - .ulpOfOne
-                let progressString: String
-                if isActive {
-                    if let fileSize = activeDownload.fileSize {
-                        let downloadedSize = Int64(Double(fileSize) * progress)
-                        progressString = "\(dataSizeString(downloadedSize, formatting: DataSizeStringFormatting(presentationData: presentationData))) / \(dataSizeString(fileSize, formatting: DataSizeStringFormatting(presentationData: presentationData)))"
-                    } else {
-                        progressString = "\(Int32(progress))%"
-                    }
-                } else {
-                    progressString = activeDownload.isMedia ? presentationData.strings.WebApp_Download_SavedToPhotos : presentationData.strings.WebApp_Download_SavedToFiles
-                }
-                items.append(.action(ContextMenuActionItem(text: activeDownload.fileName, textLayout: .secondLineWithValue(progressString), icon: { theme in return isActive ? generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Clear"), color: theme.contextMenu.primaryColor) : nil }, iconPosition: .right, action: isActive ? { [weak self, weak activeDownload] _, f in
-                    f(.default)
-                    
-                    WebAppController.activeDownloads.removeAll(where: { $0 === activeDownload })
-                    activeDownload?.cancel()
-                    
-                    if let fileDownloadTooltip = self?.controllerNode.fileDownloadTooltip {
-                        fileDownloadTooltip.dismissWithCommitAction()
-                    }
-                } : nil)))
-                items.append(.separator)
-            }
-            
-            let attachMenuBot = attachMenuBots.first(where: { $0.peer.id == botId && !$0.flags.contains(.notActivated) })
-            if hasSettings {
-                items.append(.action(ContextMenuActionItem(text: presentationData.strings.WebApp_Settings, icon: { theme in
-                    return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Settings"), color: theme.contextMenu.primaryColor)
-                }, action: { [weak self] c, _ in
-                    c?.dismiss(completion: nil)
-                    
-                    if let strongSelf = self {
-                        strongSelf.controllerNode.sendSettingsButtonEvent()
-                    }
-                })))
-            }
-            
-            if peerId != botId {
-                items.append(.action(ContextMenuActionItem(text: presentationData.strings.WebApp_OpenBot, icon: { theme in
-                    return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Bots"), color: theme.contextMenu.primaryColor)
-                }, action: { [weak self] c, _ in
-                    c?.dismiss(completion: nil)
-                    
-                    guard let strongSelf = self else {
-                        return
-                    }
-                    
-                    let _ = (context.engine.data.get(
-                        TelegramEngine.EngineData.Item.Peer.Peer(id: strongSelf.botId)
-                    )
-                    |> deliverOnMainQueue).start(next: { botPeer in
-                        guard let botPeer = botPeer else {
-                            return
-                        }
-                        if let strongSelf = self, let navigationController = strongSelf.getNavigationController() {
-                            (strongSelf.parentController() as? AttachmentController)?.minimizeIfNeeded()
-                            strongSelf.context.sharedContext.navigateToChatController(NavigateToChatControllerParams(navigationController: navigationController, context: strongSelf.context, chatLocation: .peer(botPeer)))
-                        }
-                    })
-                })))
-            }
-            
-            if let addressName = botPeer?.addressName {
-                items.append(.action(ContextMenuActionItem(text: presentationData.strings.WebApp_Share, icon: { theme in
-                    return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Forward"), color: theme.contextMenu.primaryColor)
-                }, action: { [weak self] c, _ in
-                    c?.dismiss(completion: nil)
-                    
-                    guard let self else {
-                        return
-                    }
-                    let shareController = ShareController(context: context, subject: .url("https://t.me/\(addressName)?profile"))
-                    shareController.actionCompleted = { [weak self] in
-                        let presentationData = context.sharedContext.currentPresentationData.with { $0 }
-                        self?.present(UndoOverlayController(presentationData: presentationData, content: .linkCopied(title: nil, text: presentationData.strings.Conversation_LinkCopied), elevatedLayout: false, animateInAsReplacement: false, action: { _ in return false }), in: .window(.root))
-                    }
-                    self.present(shareController, in: .window(.root))
-                })))
-            }
-            
-            items.append(.action(ContextMenuActionItem(text: presentationData.strings.WebApp_ReloadPage, icon: { theme in
-                return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Reload"), color: theme.contextMenu.primaryColor)
+        items.append(.action(ContextMenuActionItem(text: presentationData.strings.WebApp_ReloadPage, icon: { theme in
+            return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Reload"), color: theme.contextMenu.primaryColor)
+        }, action: { [weak self] c, _ in
+            c?.dismiss(completion: nil)
+            self?.controllerNode.webView?.reload()
+        })))
+        
+        if let _ = self.appName {
+            items.append(.action(ContextMenuActionItem(text: presentationData.strings.WebApp_AddToHomeScreen, icon: { theme in
+                return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/AddSquare"), color: theme.contextMenu.primaryColor)
             }, action: { [weak self] c, _ in
                 c?.dismiss(completion: nil)
-                
-                self?.controllerNode.webView?.reload()
+                self?.controllerNode.addToHomeScreen()
             })))
-            
-            if let _ = self?.appName {
-                items.append(.action(ContextMenuActionItem(text: presentationData.strings.WebApp_AddToHomeScreen, icon: { theme in
-                    return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/AddSquare"), color: theme.contextMenu.primaryColor)
-                }, action: { [weak self] c, _ in
-                    c?.dismiss(completion: nil)
-                    
-                    self?.controllerNode.addToHomeScreen()
-                })))
-            }
-                        
-            items.append(.action(ContextMenuActionItem(text: presentationData.strings.WebApp_TermsOfUse, icon: { theme in
-                return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Info"), color: theme.contextMenu.primaryColor)
-            }, action: { [weak self] c, _ in
-                c?.dismiss(completion: nil)
-                
-                guard let self, let navigationController = self.getNavigationController() else {
-                    return
-                }
-                
-                let context = self.context
-                let _ = (cachedWebAppTermsPage(context: context)
-                |> deliverOnMainQueue).startStandalone(next: { resolvedUrl in
-                    context.sharedContext.openResolvedUrl(resolvedUrl, context: context, urlContext: .generic, navigationController: navigationController, forceExternal: true, forceUpdate: false, openPeer: { peer, navigation in
-                    }, sendFile: nil, sendSticker: nil, sendEmoji: nil, requestMessageActionUrlAuth: nil, joinVoiceChat: nil, present: { [weak self] c, arguments in
-                        self?.push(c)
-                    }, dismissInput: {}, contentContext: nil, progress: nil, completion: nil)
-                })
-            })))
-            
-            items.append(.action(ContextMenuActionItem(text: presentationData.strings.WebApp_PrivacyPolicy, icon: { theme in
-                return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Privacy"), color: theme.contextMenu.primaryColor)
-            }, action: { [weak self] c, _ in
-                c?.dismiss(completion: nil)
-                
-                guard let self else {
-                    return
-                }
-                
-                (self.parentController() as? AttachmentController)?.minimizeIfNeeded()
-                if let privacyPolicyUrl {
-                    self.context.sharedContext.openExternalUrl(context: self.context, urlContext: .generic, url: privacyPolicyUrl, forceExternal: false, presentationData: self.presentationData, navigationController: self.getNavigationController(), dismissInput: {})
-                } else if let botCommands, botCommands.contains(where: { $0.text == "privacy" }) {
-                    let _ = enqueueMessages(account: self.context.account, peerId: self.botId, messages: [.message(text: "/privacy", attributes: [], inlineStickers: [:], mediaReference: nil, threadId: nil, replyToMessageId: nil, replyToStoryId: nil, localGroupingKey: nil, correlationId: nil, bubbleUpEmojiOrStickersets: [])]).startStandalone()
-                    
-                    if let botPeer, let navigationController = self.getNavigationController() {
-                        self.context.sharedContext.navigateToChatController(NavigateToChatControllerParams(navigationController: navigationController, context: self.context, chatLocation: .peer(botPeer)))
-                    }
-                } else {
-                    self.context.sharedContext.openExternalUrl(context: self.context, urlContext: .generic, url: self.presentationData.strings.WebApp_PrivacyPolicy_URL, forceExternal: false, presentationData: self.presentationData, navigationController: self.getNavigationController(), dismissInput: {})
-                }
-            })))
-                        
-            if let _ = attachMenuBot, [.attachMenu, .settings, .generic].contains(source) {
-                items.append(.action(ContextMenuActionItem(text: presentationData.strings.WebApp_RemoveBot, textColor: .destructive, icon: { theme in
-                    return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Delete"), color: theme.contextMenu.destructiveColor)
-                }, action: { [weak self] c, _ in
-                    c?.dismiss(completion: nil)
-                    
-                    if let self {
-                        self.removeAttachBot()
-                    }
-                })))
-            }
-            
-            return ContextController.Items(content: .list(items))
         }
         
-        let contextController = ContextController(presentationData: presentationData, source: .reference(WebAppContextReferenceContentSource(controller: self, sourceView: view)), items: items, gesture: gesture)
+        items.append(.action(ContextMenuActionItem(text: presentationData.strings.WebApp_TermsOfUse, icon: { theme in
+            return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Info"), color: theme.contextMenu.primaryColor)
+        }, action: { [weak self] c, _ in
+            c?.dismiss(completion: nil)
+            
+            guard let self, let navigationController = self.getNavigationController() else {
+                return
+            }
+            
+            let _ = (cachedWebAppTermsPage(context: context)
+            |> deliverOnMainQueue).startStandalone(next: { resolvedUrl in
+                context.sharedContext.openResolvedUrl(resolvedUrl, context: context, urlContext: .generic, navigationController: navigationController, forceExternal: true, forceUpdate: false, openPeer: { _, _ in
+                }, sendFile: nil, sendSticker: nil, sendEmoji: nil, requestMessageActionUrlAuth: nil, joinVoiceChat: nil, present: { [weak self] controller, _ in
+                    self?.push(controller)
+                }, dismissInput: {}, contentContext: nil, progress: nil, completion: nil)
+            })
+        })))
+        
+        items.append(.action(ContextMenuActionItem(text: presentationData.strings.WebApp_PrivacyPolicy, icon: { theme in
+            return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Privacy"), color: theme.contextMenu.primaryColor)
+        }, action: { [weak self] c, _ in
+            c?.dismiss(completion: nil)
+            guard let self else {
+                return
+            }
+            self.context.sharedContext.openExternalUrl(context: self.context, urlContext: .generic, url: self.presentationData.strings.WebApp_PrivacyPolicy_URL, forceExternal: false, presentationData: self.presentationData, navigationController: self.getNavigationController(), dismissInput: {})
+        })))
+        
+        let menuItems = Signal<ContextController.Items, NoError>.single(ContextController.Items(content: .list(items)))
+        
+        let contextController = makeContextController(presentationData: presentationData, source: .reference(WebAppContextReferenceContentSource(controller: self, sourceView: view)), items: menuItems, gesture: gesture)
         self.presentInGlobalOverlay(contextController)
     }
     
@@ -3982,6 +3874,24 @@ public final class WebAppController: ViewController, AttachmentContainable {
         self.controllerNode.setupWebView()
     }
     
+    
+    // MARK: Swiftgram
+    override final public func viewWillDisappear(_ animated: Bool) {
+        if !self.viewWillDisappearCalled {
+            self.viewWillDisappearCalled = true
+            self.updateSGWebSettingsIfNeeded()
+        }
+        super.viewWillDisappear(animated)
+    }
+    
+    private func updateSGWebSettingsIfNeeded() {
+        if let url = self.url, let parsedUrl = URL(string: url), parsedUrl.host?.lowercased() == SG_API_WEBAPP_URL_PARSED.host?.lowercased() {
+            SGLogger.shared.log("WebApp", "Closed webapp")
+            updateSGWebSettingsInteractivelly(context: self.context)
+        }
+    }
+    
+
     public func requestDismiss(completion: @escaping () -> Void) {
         if self.controllerNode.needDismissConfirmation {
             let actionSheet = ActionSheetController(presentationData: self.presentationData)

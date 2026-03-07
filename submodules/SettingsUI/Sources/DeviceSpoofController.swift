@@ -236,24 +236,28 @@ public func deviceSpoofController(context: AccountContext) -> ViewController {
     
     let arguments = DeviceSpoofControllerArguments(
         toggleEnabled: { value in
+            DeviceSpoofManager.shared.hasExplicitConfiguration = true
             DeviceSpoofManager.shared.isEnabled = value
             updateState { state in
                 state.isEnabled = value
             }
         },
         selectProfile: { id in
+            DeviceSpoofManager.shared.hasExplicitConfiguration = true
             DeviceSpoofManager.shared.selectedProfileId = id
             updateState { state in
                 state.selectedProfileId = id
             }
         },
         updateCustomDeviceModel: { text in
+            DeviceSpoofManager.shared.hasExplicitConfiguration = true
             DeviceSpoofManager.shared.customDeviceModel = text
             updateState { state in
                 state.customDeviceModel = text
             }
         },
         updateCustomSystemVersion: { text in
+            DeviceSpoofManager.shared.hasExplicitConfiguration = true
             DeviceSpoofManager.shared.customSystemVersion = text
             updateState { state in
                 state.customSystemVersion = text

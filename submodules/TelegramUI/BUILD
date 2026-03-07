@@ -5,6 +5,36 @@ load(
     "telegram_bundle_id",
 )
 
+sgdeps = [
+    "//Swiftgram/SGSettingsUI:SGSettingsUI",
+    "//Swiftgram/SGConfig:SGConfig",
+    "//Swiftgram/SGAPIWebSettings:SGAPIWebSettings",
+    "//Swiftgram/SGAppGroupIdentifier:SGAppGroupIdentifier",
+    "//Swiftgram/SGSimpleSettings:SGSimpleSettings",
+    "//Swiftgram/SFSafariViewControllerPlus:SFSafariViewControllerPlus",
+    "//Swiftgram/SGLogging:SGLogging",
+    "//Swiftgram/SGStrings:SGStrings",
+    "//Swiftgram/SGActionRequestHandlerSanitizer:SGActionRequestHandlerSanitizer",
+    "//Swiftgram/Wrap:Wrap",
+    "//Swiftgram/SGDeviceToken:SGDeviceToken",
+    "//Swiftgram/SGDebugUI:SGDebugUI",
+    "//Swiftgram/SGInputToolbar:SGInputToolbar",
+    "//Swiftgram/SGIAP:SGIAP",
+    "//Swiftgram/SGPayWall:SGPayWall",
+    "//Swiftgram/SGStatus:SGStatus",
+    "//Swiftgram/SGSwiftSignalKit:SGSwiftSignalKit",
+    "//Swiftgram/SGProUI:SGProUI",
+    "//Swiftgram/SGKeychainBackupManager:SGKeychainBackupManager",
+    "//Swiftgram/SGGHSettings:SGGHSettings",
+    # "//Swiftgram/SGContentAnalysis:SGContentAnalysis"
+]
+
+sgsrcs = [
+    "//Swiftgram/SGDBReset:SGDBReset",
+    "//Swiftgram/SGShowMessageJson:SGShowMessageJson",
+    "//Swiftgram/ChatControllerImplExtension:ChatControllerImplExtension",
+    "//Swiftgram/SGSharedAccountContextMigration:SGSharedAccountContextMigration"
+]
 
 filegroup(
     name = "TelegramUIResources",
@@ -44,12 +74,12 @@ swift_library(
     module_name = "TelegramUI",
     srcs = glob([
         "Sources/**/*.swift",
-    ]),
+    ]) + sgsrcs,
     copts = [
         "-warnings-as-errors",
     ],
-    deps = [
-        "//third-party/recaptcha:RecaptchaEnterpriseSDK",
+    deps = sgdeps + [
+        "//third-party/recaptcha:RecaptchaEnterprise",
         "//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",
         "//submodules/SSignalKit/SSignalKit:SSignalKit",
         "//submodules/AsyncDisplayKit:AsyncDisplayKit",
@@ -71,6 +101,7 @@ swift_library(
         "//submodules/TelegramVoip:TelegramVoip",
         "//submodules/DeviceAccess:DeviceAccess",
         "//submodules/Utils/DeviceModel",
+        "//submodules/WatchCommon/Host:WatchCommon",
         "//submodules/BuildConfig:BuildConfig",
         "//submodules/BuildConfigExtra:BuildConfigExtra",
         "//submodules/rlottie:RLottieBinding",
@@ -191,6 +222,8 @@ swift_library(
         "//submodules/RaiseToListen:RaiseToListen",
         "//submodules/OpusBinding:OpusBinding",
         "//third-party/opus:opus",
+        "//submodules/WatchBridgeAudio:WatchBridgeAudio",
+        "//submodules/WatchBridge:WatchBridge",
         "//submodules/ShareItems:ShareItems",
         "//submodules/ShareItems/Impl:ShareItemsImpl",
         "//submodules/SettingsUI:SettingsUI",
@@ -465,6 +498,7 @@ swift_library(
         "//submodules/TelegramUI/Components/Gifts/GiftOptionsScreen",
         "//submodules/TelegramUI/Components/Gifts/GiftStoreScreen",
         "//submodules/TelegramUI/Components/Gifts/GiftSetupScreen",
+        "//submodules/TelegramUI/Components/Gifts/GiftCraftScreen",
         "//submodules/TelegramUI/Components/ContentReportScreen",
         "//submodules/TelegramUI/Components/PeerInfo/AffiliateProgramSetupScreen",
         "//submodules/TelegramUI/Components/Stars/StarsBalanceOverlayComponent",
@@ -513,10 +547,12 @@ swift_library(
         "//submodules/TelegramUI/Components/AlertComponent",
         "//submodules/TelegramUI/Components/Chat/ChatAgeRestrictionAlertController",
         "//submodules/TelegramUI/Components/CocoonInfoScreen",
+        "//submodules/TelegramUI/Components/ProxyServerPreviewScreen",
+        "//submodules/TelegramUI/Components/ContextControllerImpl",
+        "//submodules/TelegramUI/Components/AuthConfirmationScreen",
     ] + select({
         "@build_bazel_rules_apple//apple:ios_arm64": appcenter_targets,
         "//build-system:ios_sim_arm64": [],
-        "//conditions:default": [],
     }),
     visibility = [
         "//visibility:public",

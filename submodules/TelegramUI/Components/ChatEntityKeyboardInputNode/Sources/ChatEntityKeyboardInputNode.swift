@@ -1,3 +1,4 @@
+import SGSimpleSettings
 import Foundation
 import UIKit
 import Display
@@ -483,7 +484,7 @@ public final class ChatEntityKeyboardInputNode: ChatInputNode {
     public init(context: AccountContext, currentInputData: InputData, updatedInputData: Signal<InputData, NoError>, defaultToEmojiTab: Bool, opaqueTopPanelBackground: Bool = false, useOpaqueTheme: Bool = false, interaction: ChatEntityKeyboardInputNode.Interaction?, chatPeerId: PeerId?, stateContext: StateContext?, forceHasPremium: Bool = false) {
         self.context = context
         self.currentInputData = currentInputData
-        self.defaultToEmojiTab = defaultToEmojiTab
+        self.defaultToEmojiTab = SGSimpleSettings.shared.forceEmojiTab ? true : defaultToEmojiTab
         self.opaqueTopPanelBackground = opaqueTopPanelBackground
         self.useOpaqueTheme = useOpaqueTheme
         self.stateContext = stateContext
@@ -2653,6 +2654,7 @@ public final class EntityInputView: UIInputView, AttachmentTextInputPanelInputVi
         let presentationInterfaceState = ChatPresentationInterfaceState(
             chatWallpaper: .builtin(WallpaperSettings()),
             theme: self.presentationData.theme,
+            preferredGlassType: .default,
             strings: self.presentationData.strings,
             dateTimeFormat: self.presentationData.dateTimeFormat,
             nameDisplayOrder: self.presentationData.nameDisplayOrder,

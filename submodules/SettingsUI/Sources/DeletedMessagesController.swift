@@ -8,8 +8,10 @@ import Postbox
 import TelegramPresentationData
 import ItemListUI
 import AccountContext
+import PresentationDataUtils
 import ComponentFlow
 import SliderComponent
+import AlertUI
 
 private let minDeletedMessageTransparencyPercent: Int32 = Int32(AntiDeleteManager.minDeletedMessageTransparency * 100.0)
 private let maxDeletedMessageTransparencyPercent: Int32 = Int32(AntiDeleteManager.maxDeletedMessageTransparency * 100.0)
@@ -27,6 +29,7 @@ private enum DeletedMessagesSection: Int32 {
 private enum DeletedMessagesEntry: ItemListNodeEntry {
     case enableToggle(PresentationTheme, String, Bool)
     case archiveMediaToggle(PresentationTheme, String, Bool)
+    case history(PresentationTheme, String, String)
     case transparencySlider(PresentationTheme, Int32, Bool)
     case settingsInfo(PresentationTheme, String)
     
@@ -40,10 +43,12 @@ private enum DeletedMessagesEntry: ItemListNodeEntry {
             return 0
         case .archiveMediaToggle:
             return 1
-        case .transparencySlider:
+        case .history:
             return 2
-        case .settingsInfo:
+        case .transparencySlider:
             return 3
+        case .settingsInfo:
+            return 4
         }
     }
     
@@ -57,6 +62,12 @@ private enum DeletedMessagesEntry: ItemListNodeEntry {
             return false
         case let .archiveMediaToggle(lhsTheme, lhsText, lhsValue):
             if case let .archiveMediaToggle(rhsTheme, rhsText, rhsValue) = rhs,
+               lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
+                return true
+            }
+            return false
+        case let .history(lhsTheme, lhsText, lhsValue):
+            if case let .history(rhsTheme, rhsText, rhsValue) = rhs,
                lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
                 return true
             }
@@ -104,6 +115,17 @@ private enum DeletedMessagesEntry: ItemListNodeEntry {
                     arguments.toggleArchiveMedia(value)
                 }
             )
+        case let .history(_, text, value):
+            return ItemListDisclosureItem(
+                presentationData: presentationData,
+                title: text,
+                label: value,
+                sectionId: self.section,
+                style: .blocks,
+                action: {
+                    arguments.openHistory()
+                }
+            )
         case let .transparencySlider(theme, value, isEnabled):
             return DeletedMessagesTransparencySliderItem(
                 theme: theme,
@@ -125,15 +147,18 @@ private enum DeletedMessagesEntry: ItemListNodeEntry {
 private final class DeletedMessagesControllerArguments {
     let toggleEnabled: (Bool) -> Void
     let toggleArchiveMedia: (Bool) -> Void
+    let openHistory: () -> Void
     let updateTransparency: (Int32) -> Void
     
     init(
         toggleEnabled: @escaping (Bool) -> Void,
         toggleArchiveMedia: @escaping (Bool) -> Void,
+        openHistory: @escaping () -> Void,
         updateTransparency: @escaping (Int32) -> Void
     ) {
         self.toggleEnabled = toggleEnabled
         self.toggleArchiveMedia = toggleArchiveMedia
+        self.openHistory = openHistory
         self.updateTransparency = updateTransparency
     }
 }
@@ -143,11 +168,13 @@ private final class DeletedMessagesControllerArguments {
 private struct DeletedMessagesControllerState: Equatable {
     var isEnabled: Bool
     var archiveMedia: Bool
+    var archivedCount: Int
     var transparencyPercent: Int32
     
     static func ==(lhs: DeletedMessagesControllerState, rhs: DeletedMessagesControllerState) -> Bool {
         return lhs.isEnabled == rhs.isEnabled &&
                lhs.archiveMedia == rhs.archiveMedia &&
+               lhs.archivedCount == rhs.archivedCount &&
                lhs.transparencyPercent == rhs.transparencyPercent
     }
 }
@@ -162,6 +189,7 @@ private func deletedMessagesControllerEntries(
     
     entries.append(.enableToggle(presentationData.theme, "Сохранять удалённые сообщения", state.isEnabled))
     entries.append(.archiveMediaToggle(presentationData.theme, "Архивировать медиа", state.archiveMedia))
+    entries.append(.history(presentationData.theme, "История удалений", state.archivedCount == 0 ? "Пусто" : "\(state.archivedCount)"))
     entries.append(.transparencySlider(presentationData.theme, state.transparencyPercent, state.isEnabled))
     entries.append(.settingsInfo(presentationData.theme, "Когда включено, сообщения, удалённые другими пользователями, будут сохраняться локально. Прозрачность влияет только на сообщения, которые уже помечены как удалённые."))
     
@@ -171,9 +199,12 @@ private func deletedMessagesControllerEntries(
 // MARK: - Controller
 
 public func deletedMessagesController(context: AccountContext) -> ViewController {
+    var pushControllerImpl: ((ViewController, Bool) -> Void)?
+    
     let initialState = DeletedMessagesControllerState(
         isEnabled: AntiDeleteManager.shared.isEnabled,
         archiveMedia: AntiDeleteManager.shared.archiveMedia,
+        archivedCount: AntiDeleteManager.shared.archivedCount,
         transparencyPercent: clampDeletedMessageTransparencyPercent(Int32(round(AntiDeleteManager.shared.deletedMessageTransparency * 100.0)))
     )
     
@@ -199,6 +230,9 @@ public func deletedMessagesController(context: AccountContext) -> ViewController
                 state.archiveMedia = value
                 return state
             }
+        },
+        openHistory: {
+            pushControllerImpl?(deletedMessagesHistoryController(context: context), true)
         },
         updateTransparency: { value in
             let clampedValue = clampDeletedMessageTransparencyPercent(value)
@@ -238,6 +272,257 @@ public func deletedMessagesController(context: AccountContext) -> ViewController
     }
     
     let controller = ItemListController(context: context, state: signal)
+    controller.didAppear = { _ in
+        updateState { state in
+            var state = state
+            state.isEnabled = AntiDeleteManager.shared.isEnabled
+            state.archiveMedia = AntiDeleteManager.shared.archiveMedia
+            state.archivedCount = AntiDeleteManager.shared.archivedCount
+            state.transparencyPercent = clampDeletedMessageTransparencyPercent(Int32(round(AntiDeleteManager.shared.deletedMessageTransparency * 100.0)))
+            return state
+        }
+    }
+    pushControllerImpl = { [weak controller] c, _ in
+        controller?.push(c)
+    }
+    return controller
+}
+
+// MARK: - Deleted History
+
+private enum DeletedMessagesHistorySection: Int32 {
+    case actions
+    case messages
+}
+
+private enum DeletedMessagesHistoryEntry: ItemListNodeEntry {
+    case clear(PresentationTheme, Bool)
+    case message(PresentationTheme, Int32, String, String)
+    case empty(PresentationTheme, String)
+    
+    var section: ItemListSectionId {
+        switch self {
+        case .clear:
+            return DeletedMessagesHistorySection.actions.rawValue
+        case .message, .empty:
+            return DeletedMessagesHistorySection.messages.rawValue
+        }
+    }
+    
+    var stableId: Int32 {
+        switch self {
+        case .clear:
+            return 0
+        case let .message(_, index, _, _):
+            return 1000 + index
+        case .empty:
+            return 1
+        }
+    }
+    
+    static func ==(lhs: DeletedMessagesHistoryEntry, rhs: DeletedMessagesHistoryEntry) -> Bool {
+        switch lhs {
+        case let .clear(lhsTheme, lhsEnabled):
+            if case let .clear(rhsTheme, rhsEnabled) = rhs, lhsTheme === rhsTheme, lhsEnabled == rhsEnabled {
+                return true
+            }
+            return false
+        case let .message(lhsTheme, lhsIndex, lhsTitle, lhsLabel):
+            if case let .message(rhsTheme, rhsIndex, rhsTitle, rhsLabel) = rhs, lhsTheme === rhsTheme, lhsIndex == rhsIndex, lhsTitle == rhsTitle, lhsLabel == rhsLabel {
+                return true
+            }
+            return false
+        case let .empty(lhsTheme, lhsText):
+            if case let .empty(rhsTheme, rhsText) = rhs, lhsTheme === rhsTheme, lhsText == rhsText {
+                return true
+            }
+            return false
+        }
+    }
+    
+    static func <(lhs: DeletedMessagesHistoryEntry, rhs: DeletedMessagesHistoryEntry) -> Bool {
+        return lhs.stableId < rhs.stableId
+    }
+    
+    func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {
+        let arguments = arguments as! DeletedMessagesHistoryControllerArguments
+        
+        switch self {
+        case let .clear(_, enabled):
+            return ItemListActionItem(
+                presentationData: presentationData,
+                systemStyle: .glass,
+                title: "Очистить историю",
+                kind: enabled ? .destructive : .disabled,
+                alignment: .natural,
+                sectionId: self.section,
+                style: .blocks,
+                action: {
+                    if enabled {
+                        arguments.clearHistory()
+                    }
+                }
+            )
+        case let .message(_, _, title, label):
+            return ItemListTextItem(
+                presentationData: presentationData,
+                text: .plain("\(label)\n\(title)"),
+                sectionId: self.section
+            )
+        case let .empty(_, text):
+            return ItemListTextItem(
+                presentationData: presentationData,
+                text: .plain(text),
+                sectionId: self.section
+            )
+        }
+    }
+}
+
+private final class DeletedMessagesHistoryControllerArguments {
+    let clearHistory: () -> Void
+    
+    init(clearHistory: @escaping () -> Void) {
+        self.clearHistory = clearHistory
+    }
+}
+
+private struct DeletedMessagesHistoryControllerState: Equatable {
+    var messages: [AntiDeleteManager.ArchivedMessage]
+    
+    static func ==(lhs: DeletedMessagesHistoryControllerState, rhs: DeletedMessagesHistoryControllerState) -> Bool {
+        if lhs.messages.count != rhs.messages.count {
+            return false
+        }
+        for (lhsMessage, rhsMessage) in zip(lhs.messages, rhs.messages) {
+            if lhsMessage.globalId != rhsMessage.globalId ||
+                lhsMessage.peerId != rhsMessage.peerId ||
+                lhsMessage.messageId != rhsMessage.messageId ||
+                lhsMessage.timestamp != rhsMessage.timestamp ||
+                lhsMessage.deletedAt != rhsMessage.deletedAt ||
+                lhsMessage.authorId != rhsMessage.authorId ||
+                lhsMessage.text != rhsMessage.text ||
+                lhsMessage.forwardAuthorId != rhsMessage.forwardAuthorId ||
+                lhsMessage.mediaDescription != rhsMessage.mediaDescription {
+                return false
+            }
+        }
+        return true
+    }
+}
+
+private func deletedMessagesHistoryDateString(timestamp: Int32) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale.current
+    formatter.dateStyle = .short
+    formatter.timeStyle = .medium
+    return formatter.string(from: Date(timeIntervalSince1970: TimeInterval(timestamp)))
+}
+
+private func deletedMessagesHistoryEntries(
+    presentationData: PresentationData,
+    state: DeletedMessagesHistoryControllerState
+) -> [DeletedMessagesHistoryEntry] {
+    var entries: [DeletedMessagesHistoryEntry] = []
+    entries.append(.clear(presentationData.theme, !state.messages.isEmpty))
+    
+    if state.messages.isEmpty {
+        entries.append(.empty(presentationData.theme, "История удалений пуста."))
+        return entries
+    }
+    
+    for (index, message) in state.messages.enumerated() {
+        var preview = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if preview.isEmpty {
+            preview = message.mediaDescription ?? "Сообщение без текста"
+        }
+        preview = preview.replacingOccurrences(of: "\n", with: " ")
+        if preview.count > 80 {
+            preview = String(preview.prefix(80)) + "..."
+        }
+        
+        let title = "Чат \(message.peerId): \(preview)"
+        let label = deletedMessagesHistoryDateString(timestamp: message.deletedAt)
+        
+        entries.append(.message(presentationData.theme, Int32(index), title, label))
+    }
+    
+    return entries
+}
+
+private func deletedMessagesHistoryController(context: AccountContext) -> ViewController {
+    var presentControllerImpl: ((ViewController, ViewControllerPresentationArguments?) -> Void)?
+    
+    let initialState = DeletedMessagesHistoryControllerState(
+        messages: AntiDeleteManager.shared.getAllArchivedMessages()
+    )
+    
+    let statePromise = ValuePromise(initialState, ignoreRepeated: true)
+    let stateValue = Atomic(value: initialState)
+    let updateState: ((DeletedMessagesHistoryControllerState) -> DeletedMessagesHistoryControllerState) -> Void = { f in
+        statePromise.set(stateValue.modify { f($0) })
+    }
+    
+    let arguments = DeletedMessagesHistoryControllerArguments(
+        clearHistory: {
+            let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+            let alert = textAlertController(
+                context: context,
+                title: "Очистить историю?",
+                text: "Это удалит локально сохранённые удалённые сообщения.",
+                actions: [
+                    TextAlertAction(type: .genericAction, title: presentationData.strings.Common_Cancel, action: {}),
+                    TextAlertAction(type: .destructiveAction, title: "Очистить", action: {
+                        AntiDeleteManager.shared.clearArchive()
+                        updateState { state in
+                            var state = state
+                            state.messages = AntiDeleteManager.shared.getAllArchivedMessages()
+                            return state
+                        }
+                    })
+                ]
+            )
+            presentControllerImpl?(alert, nil)
+        }
+    )
+    
+    let signal: Signal<(ItemListControllerState, (ItemListNodeState, DeletedMessagesHistoryControllerArguments)), NoError> = combineLatest(
+        context.sharedContext.presentationData,
+        statePromise.get()
+    )
+    |> map { presentationData, state -> (ItemListControllerState, (ItemListNodeState, DeletedMessagesHistoryControllerArguments)) in
+        let entries = deletedMessagesHistoryEntries(presentationData: presentationData, state: state)
+        
+        let controllerState = ItemListControllerState(
+            presentationData: ItemListPresentationData(presentationData),
+            title: .text("История удалений"),
+            leftNavigationButton: nil,
+            rightNavigationButton: nil,
+            backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back),
+            animateChanges: false
+        )
+        
+        let listState = ItemListNodeState(
+            presentationData: ItemListPresentationData(presentationData),
+            entries: entries,
+            style: .blocks,
+            animateChanges: false
+        )
+        
+        return (controllerState, (listState, arguments))
+    }
+    
+    let controller = ItemListController(context: context, state: signal)
+    controller.didAppear = { _ in
+        updateState { state in
+            var state = state
+            state.messages = AntiDeleteManager.shared.getAllArchivedMessages()
+            return state
+        }
+    }
+    presentControllerImpl = { [weak controller] c, a in
+        controller?.present(c, in: .window(.root), with: a)
+    }
     return controller
 }
 

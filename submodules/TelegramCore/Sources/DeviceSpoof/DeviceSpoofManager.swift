@@ -41,10 +41,20 @@ public final class DeviceSpoofManager {
     
     private enum Keys {
         static let isEnabled = "DeviceSpoof.isEnabled"
+        static let hasExplicitConfiguration = "DeviceSpoof.hasExplicitConfiguration"
         static let selectedProfileId = "DeviceSpoof.selectedProfileId"
         static let customDeviceModel = "DeviceSpoof.customDeviceModel"
         static let customSystemVersion = "DeviceSpoof.customSystemVersion"
     }
+
+    private struct ResolvedConfiguration {
+        let isEnabled: Bool
+        let selectedProfileId: Int
+        let customDeviceModel: String
+        let customSystemVersion: String
+    }
+
+    private static let validProfileIds = Set(profiles.map { $0.id })
     
     private let defaults = UserDefaults.standard
     
@@ -52,18 +62,34 @@ public final class DeviceSpoofManager {
     
     /// Whether device spoofing is enabled
     public var isEnabled: Bool {
-        get { defaults.bool(forKey: Keys.isEnabled) }
+        get {
+            let configuration = resolvedConfiguration()
+            return configuration.isEnabled
+        }
         set {
             defaults.set(newValue, forKey: Keys.isEnabled)
+            notifyChanged()
+        }
+    }
+
+    /// Whether the current spoofing configuration was explicitly set by the user
+    public var hasExplicitConfiguration: Bool {
+        get { defaults.bool(forKey: Keys.hasExplicitConfiguration) }
+        set {
+            defaults.set(newValue, forKey: Keys.hasExplicitConfiguration)
             notifyChanged()
         }
     }
     
     /// Selected profile ID (0 = real device, 100 = custom)
     public var selectedProfileId: Int {
-        get { defaults.integer(forKey: Keys.selectedProfileId) }
+        get {
+            sanitizeStoredConfiguration()
+            return defaults.integer(forKey: Keys.selectedProfileId)
+        }
         set {
             defaults.set(newValue, forKey: Keys.selectedProfileId)
+            sanitizeStoredConfiguration()
             notifyChanged()
         }
     }
@@ -90,15 +116,19 @@ public final class DeviceSpoofManager {
     
     /// Get the currently effective device model
     public var effectiveDeviceModel: String? {
-        guard isEnabled else { return nil }
-        
-        if selectedProfileId == 100 {
-            // Custom profile
-            let custom = customDeviceModel.trimmingCharacters(in: .whitespacesAndNewlines)
-            return custom.isEmpty ? nil : custom
+        let configuration = resolvedConfiguration()
+        guard configuration.isEnabled else {
+            return nil
         }
-        
-        if let profile = Self.profiles.first(where: { $0.id == selectedProfileId }), profile.id != 0 {
+
+        if configuration.selectedProfileId == 100 {
+            guard !configuration.customDeviceModel.isEmpty, !configuration.customSystemVersion.isEmpty else {
+                return nil
+            }
+            return configuration.customDeviceModel
+        }
+
+        if let profile = Self.profiles.first(where: { $0.id == configuration.selectedProfileId }), profile.id != 0 {
             return profile.deviceModel.isEmpty ? nil : profile.deviceModel
         }
         
@@ -107,15 +137,19 @@ public final class DeviceSpoofManager {
     
     /// Get the currently effective system version
     public var effectiveSystemVersion: String? {
-        guard isEnabled else { return nil }
-        
-        if selectedProfileId == 100 {
-            // Custom profile
-            let custom = customSystemVersion.trimmingCharacters(in: .whitespacesAndNewlines)
-            return custom.isEmpty ? nil : custom
+        let configuration = resolvedConfiguration()
+        guard configuration.isEnabled else {
+            return nil
         }
-        
-        if let profile = Self.profiles.first(where: { $0.id == selectedProfileId }), profile.id != 0 {
+
+        if configuration.selectedProfileId == 100 {
+            guard !configuration.customDeviceModel.isEmpty, !configuration.customSystemVersion.isEmpty else {
+                return nil
+            }
+            return configuration.customSystemVersion
+        }
+
+        if let profile = Self.profiles.first(where: { $0.id == configuration.selectedProfileId }), profile.id != 0 {
             return profile.systemVersion.isEmpty ? nil : profile.systemVersion
         }
         
@@ -134,8 +168,40 @@ public final class DeviceSpoofManager {
     private func notifyChanged() {
         NotificationCenter.default.post(name: Self.settingsChangedNotification, object: nil)
     }
+
+    private func sanitizeStoredConfiguration() {
+        let rawSelectedProfileId = defaults.integer(forKey: Keys.selectedProfileId)
+        if !Self.validProfileIds.contains(rawSelectedProfileId) {
+            defaults.set(0, forKey: Keys.selectedProfileId)
+        }
+
+        let rawCustomDeviceModel = defaults.string(forKey: Keys.customDeviceModel) ?? ""
+        let trimmedCustomDeviceModel = rawCustomDeviceModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if rawCustomDeviceModel != trimmedCustomDeviceModel {
+            defaults.set(trimmedCustomDeviceModel, forKey: Keys.customDeviceModel)
+        }
+
+        let rawCustomSystemVersion = defaults.string(forKey: Keys.customSystemVersion) ?? ""
+        let trimmedCustomSystemVersion = rawCustomSystemVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+        if rawCustomSystemVersion != trimmedCustomSystemVersion {
+            defaults.set(trimmedCustomSystemVersion, forKey: Keys.customSystemVersion)
+        }
+    }
+
+    private func resolvedConfiguration() -> ResolvedConfiguration {
+        sanitizeStoredConfiguration()
+
+        return ResolvedConfiguration(
+            isEnabled: defaults.bool(forKey: Keys.hasExplicitConfiguration) && defaults.bool(forKey: Keys.isEnabled),
+            selectedProfileId: defaults.integer(forKey: Keys.selectedProfileId),
+            customDeviceModel: defaults.string(forKey: Keys.customDeviceModel) ?? "",
+            customSystemVersion: defaults.string(forKey: Keys.customSystemVersion) ?? ""
+        )
+    }
     
     // MARK: - Init
     
-    private init() {}
+    private init() {
+        sanitizeStoredConfiguration()
+    }
 }

@@ -757,7 +757,7 @@ func openResolvedUrlImpl(
         case let .settings(section):
             dismissInput()
             switch section {
-            case .theme:
+            case .legacy(.theme):
                 if let navigationController = navigationController {
                     let controller = themeSettingsController(context: context)
                     controller.navigationPresentation = .modal
@@ -768,7 +768,7 @@ func openResolvedUrlImpl(
                     
                     navigationController.setViewControllers(controllers, animated: true)
                 }
-            case .devices:
+            case .legacy(.devices):
                 if let navigationController = navigationController {
                     let activeSessions = deferred { () -> Signal<(ActiveSessionsContext, Int, WebSessionsContext), NoError> in
                         let activeSessionsContext = context.engine.privacy.activeSessions()
@@ -798,15 +798,13 @@ func openResolvedUrlImpl(
                         navigationController.setViewControllers(controllers, animated: true)
                     })
                 }
-            case .autoremoveMessages:
+            case .legacy(.autoremoveMessages):
                 let _ = (context.engine.privacy.requestAccountPrivacySettings()
                 |> take(1)
                 |> deliverOnMainQueue).start(next: { settings in
                     navigationController?.pushViewController(globalAutoremoveScreen(context: context, initialValue: settings.messageAutoremoveTimeout ?? 0, updated: { _ in }), animated: true)
                 })
-            case .twoStepAuth:
-                break
-            case .enableLog:
+            case .legacy(.enableLog):
                 if let navigationController = navigationController {
                     let _ = updateLoggingSettings(accountManager: context.sharedContext.accountManager, {
                         $0.withUpdatedLogToFile(true)
@@ -819,7 +817,7 @@ func openResolvedUrlImpl(
                         navigationController.setViewControllers(controllers, animated: true)
                     }
                 }
-            case .phonePrivacy:
+            case .legacy(.phonePrivacy):
                 let privacySignal = context.engine.privacy.requestAccountPrivacySettings()
                 let _ = (privacySignal
                 |> deliverOnMainQueue).start(next: { info in
@@ -831,11 +829,13 @@ func openResolvedUrlImpl(
                         navigationController.pushViewController(controller)
                     }
                 })
-            case .loginEmail:
+            case .legacy(.loginEmail):
                 if let navigationController {
                     let controller = loginEmailSetupController(context: context, blocking: false, emailPattern: nil, navigationController: navigationController, completion: {}, dismiss: {})
                     navigationController.pushViewController(controller)
                 }
+            case .path(_):
+                break
             }
         case let .premiumOffer(reference):
             dismissInput()
@@ -851,7 +851,7 @@ func openResolvedUrlImpl(
             }
         case let .starsTopup(amount, purpose):
             dismissInput()
-            if let starsContext = context.starsContext {
+            if let starsContext = context.starsContext, let amount {
                 let proceed = {
                     let controller = context.sharedContext.makeStarsPurchaseScreen(context: context, starsContext: starsContext, options: [], purpose: .topUp(requiredStars: amount, purpose: purpose), targetPeerId: nil, customTheme: nil, completion: { _ in })
                     if let navigationController = navigationController {
@@ -1480,8 +1480,8 @@ func openResolvedUrlImpl(
                     present(textAlertController(context: context, updatedPresentationData: updatedPresentationData, title: nil, text: presentationData.strings.Login_UnknownError, actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})]), nil)
                 }
             })
-        case let .collectible(gift):
-            if let gift {
+        case let .collectible(collectible):
+            if case let .gift(gift) = collectible {
                 var dismissedImpl: (() -> Void)?
                 if let storyProgressPauseContext = contentContext as? StoryProgressPauseContext {
                     let updateExternalController = storyProgressPauseContext.update
@@ -1628,5 +1628,17 @@ func openResolvedUrlImpl(
                     navigationController?.pushViewController(controller)
                 }
             }
+        case let .unknownDeepLink(path):
+            present(textAlertController(context: context, updatedPresentationData: updatedPresentationData, title: nil, text: path, actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})]), nil)
+        case let .oauth(url):
+            context.sharedContext.openExternalUrl(context: context, urlContext: urlContext, url: url, forceExternal: true, presentationData: presentationData, navigationController: navigationController, dismissInput: dismissInput)
+        case .chats(_):
+            dismissInput()
+        case .compose(_):
+            dismissInput()
+        case .postStory(_):
+            dismissInput()
+        case .contacts(_):
+            dismissInput()
     }
 }

@@ -12,12 +12,14 @@ final class WallpaperEdgeEffectNodeImpl: ASDisplayNode, WallpaperEdgeEffectNode 
     private struct Params: Equatable {
         let rect: CGRect
         let edge: WallpaperEdgeEffectEdge
+        let alpha: CGFloat
         let blur: Bool
         let containerSize: CGSize
         
-        init(rect: CGRect, edge: WallpaperEdgeEffectEdge, blur: Bool, containerSize: CGSize) {
+        init(rect: CGRect, edge: WallpaperEdgeEffectEdge, alpha: CGFloat, blur: Bool, containerSize: CGSize) {
             self.rect = rect
             self.edge = edge
+            self.alpha = alpha
             self.blur = blur
             self.containerSize = containerSize
         }
@@ -94,7 +96,7 @@ final class WallpaperEdgeEffectNodeImpl: ASDisplayNode, WallpaperEdgeEffectNode 
                 self.containerNode.insertSubnode(gradientNode, at: 0)
                 
                 if let params = self.params {
-                    self.updateImpl(rect: params.rect, edge: params.edge, blur: params.blur, containerSize: params.containerSize, transition: .immediate)
+                    self.updateImpl(rect: params.rect, edge: params.edge, alpha: params.alpha, blur: params.blur, containerSize: params.containerSize, transition: .immediate)
                 }
             }
         } else {
@@ -123,15 +125,16 @@ final class WallpaperEdgeEffectNodeImpl: ASDisplayNode, WallpaperEdgeEffectNode 
         self.contentNode.isHidden = parentNode.contentNode.isHidden
     }
     
-    func update(rect: CGRect, edge: WallpaperEdgeEffectEdge, blur: Bool, containerSize: CGSize, transition: ContainedViewLayoutTransition) {
-        let params = Params(rect: rect, edge: edge, blur: blur, containerSize: containerSize)
+    func update(rect: CGRect, edge: WallpaperEdgeEffectEdge, alpha: CGFloat, blur: Bool, containerSize: CGSize, transition: ContainedViewLayoutTransition) {
+        let params = Params(rect: rect, edge: edge, alpha: alpha, blur: blur, containerSize: containerSize)
         if self.params != params {
             self.params = params
-            self.updateImpl(rect: params.rect, edge: params.edge, blur: params.blur, containerSize: params.containerSize, transition: transition)
+            self.updateImpl(rect: params.rect, edge: params.edge, alpha: params.alpha, blur: params.blur, containerSize: params.containerSize, transition: transition)
         }
     }
     
-    private func updateImpl(rect: CGRect, edge: WallpaperEdgeEffectEdge, blur: Bool, containerSize: CGSize, transition: ContainedViewLayoutTransition) {
+    private func updateImpl(rect: CGRect, edge: WallpaperEdgeEffectEdge, alpha: CGFloat, blur: Bool, containerSize: CGSize, transition: ContainedViewLayoutTransition) {
+        transition.updateAlpha(node: self, alpha: alpha)
         transition.updateFrame(node: self.containerMaskingNode, frame: CGRect(origin: CGPoint(), size: rect.size))
         transition.updateBounds(node: self.containerNode, bounds: CGRect(origin: CGPoint(x: rect.minX, y: rect.minY), size: rect.size))
         

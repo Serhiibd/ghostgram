@@ -15,7 +15,165 @@ import ReactionSelectionNode
 import TopMessageReactions
 import ChatMessagePaymentAlertController
 
+enum ForwardEnqueueMessagesResult {
+    case messages([EnqueueMessage])
+    case unsupported
+}
+
 extension ChatControllerImpl {
+    private func forwardOptionsAttributes(_ options: ChatInterfaceForwardOptionsState?) -> [MessageAttribute] {
+        return [
+            ForwardOptionsMessageAttribute(
+                hideNames: options?.hideNames == true,
+                hideCaptions: options?.hideCaptions == true
+            )
+        ]
+    }
+    
+    private func shouldUsePlainCopyForward(for message: Message) -> Bool {
+        return MiscSettingsManager.shared.shouldBypassCopyProtection && message.isCopyProtectedIgnoringBypass()
+    }
+    
+    private func forwardMessagesNeedPlainCopy(_ messages: [Message]) -> Bool {
+        return messages.contains(where: self.shouldUsePlainCopyForward(for:))
+    }
+    
+    private func plainCopyForwardMediaReference(for message: Message) -> AnyMediaReference? {
+        var supportedMedia: Media?
+        
+        for media in message.media {
+            switch media {
+            case is TelegramMediaAction, is TelegramMediaPoll, is TelegramMediaTodo, is TelegramMediaDice, is TelegramMediaPaidContent, is TelegramMediaExpiredContent, is TelegramMediaStory, is TelegramMediaInvoice:
+                return nil
+            case is TelegramMediaWebpage:
+                continue
+            case is TelegramMediaImage, is TelegramMediaFile:
+                if supportedMedia != nil {
+                    return nil
+                }
+                supportedMedia = media
+            case is TelegramMediaMap, is TelegramMediaContact:
+                if supportedMedia != nil {
+                    return nil
+                }
+                supportedMedia = media
+            default:
+                return nil
+            }
+        }
+        
+        guard let supportedMedia else {
+            return nil
+        }
+        if supportedMedia is TelegramMediaImage || supportedMedia is TelegramMediaFile {
+            return .message(message: MessageReference(message), media: supportedMedia)
+        } else {
+            return .standalone(media: supportedMedia)
+        }
+    }
+    
+    private func plainCopyForwardMessage(
+        _ message: Message,
+        options: ChatInterfaceForwardOptionsState?,
+        threadId: Int64?,
+        localGroupingKey: Int64?
+    ) -> EnqueueMessage? {
+        if message.id.peerId.namespace == Namespaces.Peer.SecretChat || message.containsSecretMedia || message.minAutoremoveOrClearTimeout == viewOnceTimeout {
+            return nil
+        }
+        
+        let mediaReference = self.plainCopyForwardMediaReference(for: message)
+        if !message.media.isEmpty && mediaReference == nil {
+            return nil
+        }
+        
+        var text = message.text
+        var entities = message.textEntitiesAttribute?.entities ?? []
+        if options?.hideCaptions == true, mediaReference != nil {
+            text = ""
+            entities = []
+        }
+        
+        if mediaReference == nil && text.isEmpty {
+            return nil
+        }
+        
+        var attributes: [MessageAttribute] = []
+        if !entities.isEmpty {
+            attributes.append(TextEntitiesMessageAttribute(entities: entities))
+        }
+        for attribute in message.attributes {
+            if attribute is MediaSpoilerMessageAttribute || attribute is InvertMediaMessageAttribute {
+                attributes.append(attribute)
+            }
+        }
+        
+        return .message(
+            text: text,
+            attributes: attributes,
+            inlineStickers: [:],
+            mediaReference: mediaReference,
+            threadId: threadId,
+            replyToMessageId: nil,
+            replyToStoryId: nil,
+            localGroupingKey: localGroupingKey,
+            correlationId: nil,
+            bubbleUpEmojiOrStickersets: []
+        )
+    }
+    
+    func buildForwardEnqueueMessages(
+        from messages: [Message],
+        options: ChatInterfaceForwardOptionsState?,
+        threadId: Int64?
+    ) -> ForwardEnqueueMessagesResult {
+        let forwardAttributes = self.forwardOptionsAttributes(options)
+        var groupingKeyMap: [Int64: Int64] = [:]
+        var result: [EnqueueMessage] = []
+        
+        for message in messages {
+            if self.shouldUsePlainCopyForward(for: message) {
+                let localGroupingKey: Int64?
+                if let groupingKey = message.groupingKey {
+                    if let existingKey = groupingKeyMap[groupingKey] {
+                        localGroupingKey = existingKey
+                    } else {
+                        let newKey = Int64.random(in: Int64.min ... Int64.max)
+                        groupingKeyMap[groupingKey] = newKey
+                        localGroupingKey = newKey
+                    }
+                } else {
+                    localGroupingKey = nil
+                }
+                
+                guard let plainCopyMessage = self.plainCopyForwardMessage(message, options: options, threadId: threadId, localGroupingKey: localGroupingKey) else {
+                    return .unsupported
+                }
+                result.append(plainCopyMessage)
+            } else {
+                result.append(.forward(source: message.id, threadId: threadId, grouping: .auto, attributes: forwardAttributes, correlationId: nil))
+            }
+        }
+        
+        return .messages(result)
+    }
+    
+    func presentUnsupportedProtectedForwardAlert(in controller: ViewController?) {
+        let presentationData = self.context.sharedContext.currentPresentationData.with { $0 }
+        let text = "This protected message type can't be copied yet."
+        let alert = textAlertController(
+            context: self.context,
+            title: nil,
+            text: text,
+            actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})]
+        )
+        if let controller {
+            controller.present(alert, in: .window(.root))
+        } else {
+            self.present(alert, in: .window(.root))
+        }
+    }
+    
     func forwardMessages(messageIds: [MessageId], options: ChatInterfaceForwardOptionsState? = nil, resetCurrent: Bool = false) {
         let _ = (self.context.engine.data.get(EngineDataMap(
             messageIds.map(TelegramEngine.EngineData.Item.Messages.Message.init)
@@ -53,7 +211,7 @@ extension ChatControllerImpl {
             var attemptSelectionImpl: ((EnginePeer, ChatListDisabledPeerReason) -> Void)?
             let controller = self.context.sharedContext.makePeerSelectionController(PeerSelectionControllerParams(context: self.context, updatedPresentationData: self.updatedPresentationData, filter: filter, hasFilters: true, attemptSelection: { peer, _, reason in
                 attemptSelectionImpl?(peer, reason)
-            }, multipleSelection: true, forwardedMessageIds: messages.map { $0.id }, selectForumThreads: true))
+            }, multipleSelection: true, forwardedMessageIds: messages.map { $0.id }, initialForwardOptionsState: options, selectForumThreads: true))
             let context = self.context
             attemptSelectionImpl = { [weak self, weak controller] peer, reason in
                 guard let strongSelf = self, let controller = controller else {
@@ -153,12 +311,13 @@ extension ChatControllerImpl {
                             }
                         }
                         
-                        var attributes: [MessageAttribute] = []
-                        attributes.append(ForwardOptionsMessageAttribute(hideNames: forwardOptions?.hideNames == true, hideCaptions: forwardOptions?.hideCaptions == true))
-                        
-                        result.append(contentsOf: messages.map { message -> EnqueueMessage in
-                            return .forward(source: message.id, threadId: nil, grouping: .auto, attributes: attributes, correlationId: nil)
-                        })
+                        switch strongSelf.buildForwardEnqueueMessages(from: messages, options: forwardOptions, threadId: nil) {
+                        case let .messages(forwardMessages):
+                            result.append(contentsOf: forwardMessages)
+                        case .unsupported:
+                            strongSelf.presentUnsupportedProtectedForwardAlert(in: strongController)
+                            return
+                        }
                         
                         let commit: ([EnqueueMessage]) -> Void = { result in
                             guard let strongSelf = self else {
@@ -392,10 +551,17 @@ extension ChatControllerImpl {
                     }
                     
                     var correlationIds: [Int64] = []
-                    let mappedMessages = messages.map { message -> EnqueueMessage in
-                        let correlationId = Int64.random(in: Int64.min ... Int64.max)
-                        correlationIds.append(correlationId)
-                        return .forward(source: message.id, threadId: nil, grouping: .auto, attributes: [], correlationId: correlationId)
+                    let mappedMessages: [EnqueueMessage]
+                    switch strongSelf.buildForwardEnqueueMessages(from: messages, options: options, threadId: nil) {
+                    case let .messages(builtMessages):
+                        mappedMessages = builtMessages.map { message in
+                            let correlationId = Int64.random(in: Int64.min ... Int64.max)
+                            correlationIds.append(correlationId)
+                            return message.withUpdatedCorrelationId(correlationId)
+                        }
+                    case .unsupported:
+                        strongSelf.presentUnsupportedProtectedForwardAlert(in: strongController)
+                        return
                     }
                     
                     let _ = (reactionItems
@@ -448,6 +614,33 @@ extension ChatControllerImpl {
                     strongSelf.updateChatPresentationInterfaceState(animated: false, interactive: true, { $0.updatedInterfaceState({ $0.withoutSelectionState() }) })
                     strongController.dismiss()
                 } else {
+                    if strongSelf.forwardMessagesNeedPlainCopy(messages) {
+                        let forwardOptions = options ?? ChatInterfaceForwardOptionsState(hideNames: !hasNotOwnMessages, hideCaptions: false, unhideNamesOnCaptionChange: false)
+                        let mappedMessages: [EnqueueMessage]
+                        switch strongSelf.buildForwardEnqueueMessages(from: messages, options: forwardOptions, threadId: threadId) {
+                        case let .messages(builtMessages):
+                            mappedMessages = builtMessages
+                        case .unsupported:
+                            strongSelf.presentUnsupportedProtectedForwardAlert(in: strongController)
+                            return
+                        }
+                        
+                        let _ = (enqueueMessages(account: strongSelf.context.account, peerId: peerId, messages: mappedMessages)
+                        |> deliverOnMainQueue).startStandalone()
+                        
+                        let presentationData = strongSelf.context.sharedContext.currentPresentationData.with { $0 }
+                        var peerName = peer.displayTitle(strings: presentationData.strings, displayOrder: presentationData.nameDisplayOrder)
+                        peerName = peerName.replacingOccurrences(of: "**", with: "")
+                        let text = messages.count == 1 ? presentationData.strings.Conversation_ForwardTooltip_Chat_One(peerName).string : presentationData.strings.Conversation_ForwardTooltip_Chat_Many(peerName).string
+                        strongSelf.present(UndoOverlayController(presentationData: presentationData, content: .forward(savedMessages: false, text: text), elevatedLayout: false, position: .bottom, animateInAsReplacement: true, action: { _ in
+                            return false
+                        }), in: .current)
+                        
+                        strongSelf.updateChatPresentationInterfaceState(animated: false, interactive: true, { $0.updatedInterfaceState({ $0.withoutSelectionState() }) })
+                        strongController.dismiss()
+                        return
+                    }
+                    
                     if let navigationController = strongSelf.navigationController as? NavigationController {
                         for controller in navigationController.viewControllers {
                             if let maybeChat = controller as? ChatControllerImpl {

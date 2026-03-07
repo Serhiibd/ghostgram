@@ -21,6 +21,17 @@ import ComponentFlow
 import ComponentDisplayAdapters
 import LocalMediaResources
 import AppBundle
+import SGSimpleSettings
+
+private func sgChatTranslationAvailable(isPremium: Bool, peer: EnginePeer?) -> Bool {
+    if isPremium || SGSimpleSettings.shared.translationBackendEnum != .default {
+        return true
+    }
+    if case let .channel(channel)? = peer, channel.flags.contains(.autoTranslateEnabled) {
+        return true
+    }
+    return false
+}
 
 final class ChatTranslationPanelNode: ASDisplayNode {
     private let context: AccountContext
@@ -179,7 +190,7 @@ final class ChatTranslationPanelNode: ASDisplayNode {
         let closeButtonSize = self.closeButton.measure(CGSize(width: 100.0, height: 100.0))
         self.closeButton.frame = CGRect(origin: CGPoint(x: width - contentRightInset - closeButtonSize.width, y: floorToScreenPixels((panelHeight - closeButtonSize.height) / 2.0)), size: closeButtonSize)
         
-        if info.isPremium {
+        if sgChatTranslationAvailable(isPremium: info.isPremium, peer: info.peer) {
             self.moreButton.isHidden = false
             self.closeButton.isHidden = true
         } else {
@@ -212,11 +223,7 @@ final class ChatTranslationPanelNode: ASDisplayNode {
             return
         }
         let isPremium = info.isPremium
-        
-        var translationAvailable = isPremium
-        if case let .channel(channel) = info.peer, channel.flags.contains(.autoTranslateEnabled) {
-            translationAvailable = true
-        }
+        let translationAvailable = sgChatTranslationAvailable(isPremium: isPremium, peer: info.peer)
         
         if translationAvailable {
             self.close()
@@ -231,11 +238,7 @@ final class ChatTranslationPanelNode: ASDisplayNode {
         }
         
         let isPremium = info.isPremium
-        
-        var translationAvailable = isPremium
-        if case let .channel(channel) = info.peer, channel.flags.contains(.autoTranslateEnabled) {
-            translationAvailable = true
-        }
+        let translationAvailable = sgChatTranslationAvailable(isPremium: isPremium, peer: info.peer)
         
         if translationAvailable {
             self.toggle()

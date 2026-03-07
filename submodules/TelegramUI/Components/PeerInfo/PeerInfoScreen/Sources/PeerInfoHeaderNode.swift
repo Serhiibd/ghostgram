@@ -28,6 +28,7 @@ import AnimationCache
 import MultiAnimationRenderer
 import ComponentDisplayAdapters
 import ChatTitleView
+import SGSimpleSettings
 import AppBundle
 import AvatarVideoNode
 import PeerInfoVisualMediaPaneNode
@@ -207,7 +208,7 @@ final class PeerInfoHeaderNode: ASDisplayNode {
     private var currentStarRating: TelegramStarRating?
     private var currentPendingStarRating: TelegramStarPendingRating?
     
-    init(context: AccountContext, controller: PeerInfoScreenImpl, avatarInitiallyExpanded: Bool, isOpenedFromChat: Bool, isMediaOnly: Bool, isSettings: Bool, isMyProfile: Bool, forumTopicThreadId: Int64?, chatLocation: ChatLocation) {
+    init(hidePhoneInSettings: Bool = false, context: AccountContext, controller: PeerInfoScreenImpl, avatarInitiallyExpanded: Bool, isOpenedFromChat: Bool, isMediaOnly: Bool, isSettings: Bool, isMyProfile: Bool, forumTopicThreadId: Int64?, chatLocation: ChatLocation) {
         self.context = context
         self.controller = controller
         self.isAvatarExpanded = avatarInitiallyExpanded
@@ -1236,11 +1237,15 @@ final class PeerInfoHeaderNode: ASDisplayNode {
             smallTitleAttributes = MultiScaleTextState.Attributes(font: Font.medium(28.0), color: .white, shadowColor: titleShadowColor)
             
             if self.isSettings, let user = peer as? TelegramUser {
-                var subtitle = formatPhoneNumber(context: self.context, number: user.phone ?? "")
-                
-                if let mainUsername = user.addressName, !mainUsername.isEmpty {
-                    subtitle = "\(subtitle) • @\(mainUsername)"
+                let hidePhoneInSettings = SGSimpleSettings.shared.hidePhoneInSettings
+                var subtitleComponents: [String] = []
+                if !hidePhoneInSettings, let phone = user.phone, !phone.isEmpty {
+                    subtitleComponents.append(formatPhoneNumber(context: self.context, number: phone))
                 }
+                if let mainUsername = user.addressName, !mainUsername.isEmpty {
+                    subtitleComponents.append("@\(mainUsername)")
+                }
+                let subtitle = subtitleComponents.joined(separator: " • ")
                 subtitleStringText = subtitle
                 subtitleAttributes = MultiScaleTextState.Attributes(font: Font.regular(17.0), color: .white)
                 smallSubtitleAttributes = MultiScaleTextState.Attributes(font: Font.regular(16.0), color: .white, shadowColor: titleShadowColor)
@@ -2859,4 +2864,3 @@ final class PeerInfoHeaderNode: ASDisplayNode {
         transition.updateAnchorPoint(layer: self.avatarListNode.maskNode.layer, anchorPoint: maskAnchorPoint)
     }
 }
-

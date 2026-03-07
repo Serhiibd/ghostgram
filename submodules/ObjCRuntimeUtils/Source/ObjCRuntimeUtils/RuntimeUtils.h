@@ -1,5 +1,8 @@
 #import <Foundation/Foundation.h>
+#import <QuartzCore/QuartzCore.h>
+#if __has_include(<UIKit/UIKit.h>)
 #import <UIKit/UIKit.h>
+#endif
 
 typedef enum {
     NSObjectAssociationPolicyRetain = 0,
@@ -32,4 +35,3 @@ typedef enum {
 @end
 
 SEL _Nonnull makeSelectorFromString(NSString * _Nonnull string);
-

@@ -148,6 +148,8 @@ public func universalServiceMessageString(presentationData: (PresentationTheme, 
                         attributedString = addAttributesToStringWithRanges(strings.Notification_CreatedChatWithTitle(authorName, title)._tuple, body: bodyAttributes, argumentAttributes: peerMentionsAttributes(primaryTextColor: primaryTextColor, peerIds: [(0, message.author?.id)]))
                     }
                 }
+            case .groupCreatorChange:
+                attributedString = NSAttributedString(string: message.text, font: titleFont, textColor: primaryTextColor)
             case let .addedMembers(peerIds):
                 if let peerId = peerIds.first, peerId == message.author?.id {
                     if let peer = message.peers[message.id.peerId] as? TelegramChannel, case .broadcast = peer.info {
@@ -791,7 +793,7 @@ public func universalServiceMessageString(presentationData: (PresentationTheme, 
                         if case let .unique(uniqueGift) = starGift {
                             giftTitle = "\(uniqueGift.title) #\(formatCollectibleNumber(uniqueGift.number, dateTimeFormat: dateTimeFormat))"
                             for attribute in uniqueGift.attributes {
-                                if case let .model(_, fileValue, _) = attribute {
+                                if case let .model(_, fileValue, _, _) = attribute {
                                     file = fileValue
                                     break
                                 }
@@ -1262,7 +1264,7 @@ public func universalServiceMessageString(presentationData: (PresentationTheme, 
                         attributedString = addAttributesToStringWithRanges(strings.Notification_StarsGift_Sent(authorName, starsPrice)._tuple, body: bodyAttributes, argumentAttributes: attributes)
                     }
                 }
-            case let .starGiftUnique(gift, isUpgrade, _, _, _, _, _, isPrepaidUpgrade, peerId, senderId, _, resaleStars, _, _, _, assigned, fromOffer):
+            case let .starGiftUnique(gift, isUpgrade, _, _, _, _, _, isPrepaidUpgrade, peerId, senderId, _, resaleStars, _, _, _, assigned, fromOffer, _, _):
                 if case let .unique(gift) = gift {
                     if !forAdditionalServiceMessage && !"".isEmpty {
                         attributedString = NSAttributedString(string: "\(gift.title) #\(presentationStringsFormattedNumber(gift.number, dateTimeFormat.groupingSeparator))", font: titleFont, textColor: primaryTextColor)

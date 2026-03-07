@@ -44,4 +44,14 @@ public extension Message {
     var deletedMessageAttribute: DeletedMessageAttribute? {
         return self.attributes.first(where: { $0 is DeletedMessageAttribute }) as? DeletedMessageAttribute
     }
+    
+    var ghostgramIsDeleted: Bool {
+        if self.isDeletedButVisible {
+            return true
+        }
+        if AntiDeleteManager.shared.isMessageDeleted(peerId: self.id.peerId.toInt64(), messageId: self.id.id) {
+            return true
+        }
+        return AntiDeleteManager.shared.isMessageDeleted(text: self.text)
+    }
 }

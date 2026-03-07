@@ -129,7 +129,7 @@ private final class GiftsTabItemComponent: Component {
                             file = gift.file
                         case let .unique(gift):
                             for attribute in gift.attributes {
-                                if case let .model(_, fileValue, _) = attribute {
+                                if case let .model(_, fileValue, _, _) = attribute {
                                     file = fileValue
                                 }
                             }
@@ -270,7 +270,7 @@ final class PeerInfoPaneTabsContainerPaneNode: ASDisplayNode {
                         file = gift.file
                     case let .unique(gift):
                         for attribute in gift.attributes {
-                            if case let .model(_, fileValue, _) = attribute {
+                            if case let .model(_, fileValue, _, _) = attribute {
                                 file = fileValue
                             }
                         }
@@ -653,7 +653,7 @@ final class PeerInfoPaneContainerNode: ASDisplayNode, ASGestureRecognizerDelegat
     
     private let initialPaneKey: PeerInfoPaneKey?
     
-    init(context: AccountContext, updatedPresentationData: (initial: PresentationData, signal: Signal<PresentationData, NoError>)?, peerId: PeerId, chatLocation: ChatLocation, sharedMediaFromForumTopic: (EnginePeer.Id, Int64)?, chatLocationContextHolder: Atomic<ChatLocationContextHolder?>, isMediaOnly: Bool, initialPaneKey: PeerInfoPaneKey?, initialStoryFolderId: Int64?, initialGiftCollectionId: Int64?) {
+    init(context: AccountContext, updatedPresentationData: (initial: PresentationData, signal: Signal<PresentationData, NoError>)?, peerId: PeerId, chatLocation: ChatLocation, sharedMediaFromForumTopic: (EnginePeer.Id, Int64)?, chatLocationContextHolder: Atomic<ChatLocationContextHolder?>, isMediaOnly: Bool, initialPaneKey: PeerInfoPaneKey?, initialStoryFolderId: Int64?, initialGiftCollectionId: Int64?, switchToMediaTarget: PeerInfoSwitchToMediaTarget? = nil) {
         self.context = context
         self.updatedPresentationData = updatedPresentationData
         self.peerId = peerId

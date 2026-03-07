@@ -1,3 +1,10 @@
+// MARK: Swiftgram
+import SGIAP
+import SGPayWall
+import SGProUI
+import SGSimpleSettings
+import SGStatus
+//
 import Foundation
 import UIKit
 import AsyncDisplayKit
@@ -95,6 +102,7 @@ import PasskeysScreen
 import GiftDemoScreen
 import ChatTextLinkEditUI
 import CocoonInfoScreen
+import GiftCraftScreen
 
 private final class AccountUserInterfaceInUseContext {
     let subscribers = Bag<(Bool) -> Void>()
@@ -254,6 +262,9 @@ public final class SharedAccountContextImpl: SharedAccountContext {
     public let currentMediaDisplaySettings: Atomic<MediaDisplaySettings>
     private var mediaDisplaySettingsDisposable: Disposable?
     
+    public let currentChatSettings: Atomic<ChatSettings>
+    private var chatSettingsDisposable: Disposable?
+    
     public let currentStickerSettings: Atomic<StickerSettings>
     private var stickerSettingsDisposable: Disposable?
     
@@ -264,6 +275,14 @@ public final class SharedAccountContextImpl: SharedAccountContext {
         return self.immediateExperimentalUISettingsValue.with { $0 }
     }
     private var experimentalUISettingsDisposable: Disposable?
+
+    // MARK: Swiftgram
+    private var immediateSGStatusValue = Atomic<SGStatus>(value: SGStatus.default)
+    public var immediateSGStatus: SGStatus {
+        return self.immediateSGStatusValue.with { $0 }
+    }
+    private var sgStatusDisposable: Disposable?
+    public var SGIAP: SGIAPManager?
     
     public var presentGlobalController: (ViewController, Any?) -> Void = { _, _ in }
     public var presentCrossfadeController: () -> Void = {}
@@ -338,6 +357,7 @@ public final class SharedAccountContextImpl: SharedAccountContext {
         self.currentMediaDisplaySettings = Atomic(value: initialPresentationDataAndSettings.mediaDisplaySettings)
         self.currentStickerSettings = Atomic(value: initialPresentationDataAndSettings.stickerSettings)
         self.currentInAppNotificationSettings = Atomic(value: initialPresentationDataAndSettings.inAppNotificationSettings)
+        self.currentChatSettings = Atomic(value: ChatSettings.defaultSettings)
         
         if automaticEnergyUsageShouldBeOnNow(settings: self.currentAutomaticMediaDownloadSettings) {
             self.energyUsageSettings = EnergyUsageSettings.powerSavingDefault
@@ -484,6 +504,15 @@ public final class SharedAccountContextImpl: SharedAccountContext {
             }
         })
         
+        self.chatSettingsDisposable = (self.accountManager.sharedData(keys: [ApplicationSpecificSharedDataKeys.chatSettings])
+        |> deliverOnMainQueue).start(next: { [weak self] sharedData in
+            if let strongSelf = self {
+                if let settings = sharedData.entries[ApplicationSpecificSharedDataKeys.chatSettings]?.get(ChatSettings.self) {
+                    let _ = strongSelf.currentChatSettings.swap(settings)
+                }
+            }
+        })
+        
         let immediateExperimentalUISettingsValue = self.immediateExperimentalUISettingsValue
         let _ = immediateExperimentalUISettingsValue.swap(initialPresentationDataAndSettings.experimentalUISettings)
         
@@ -498,6 +527,18 @@ public final class SharedAccountContextImpl: SharedAccountContext {
                 GlassBackgroundView.useCustomGlassImpl = settings.fakeGlass
             }
         })
+        // MARK: Swiftgram
+        let immediateSGStatusValue = self.immediateSGStatusValue
+        self.sgStatusDisposable = (self.accountManager.sharedData(keys: [ApplicationSpecificSharedDataKeys.sgStatus])
+        |> deliverOnMainQueue).start(next: { sharedData in
+            if let settings = sharedData.entries[ApplicationSpecificSharedDataKeys.sgStatus]?.get(SGStatus.self) {
+                let _ = immediateSGStatusValue.swap(settings)
+                SGSimpleSettings.shared.ephemeralStatus = settings.status
+                SGSimpleSettings.shared.status = settings.status
+            }
+        })
+        self.initSGIAP(isMainApp: applicationBindings.isMainApp)
+        //
         
         let _ = self.contactDataManager?.personNameDisplayOrder().start(next: { order in
             let _ = updateContactSettingsInteractively(accountManager: accountManager, { settings in
@@ -1077,6 +1118,8 @@ public final class SharedAccountContextImpl: SharedAccountContext {
         self.inAppNotificationSettingsDisposable?.dispose()
         self.mediaInputSettingsDisposable?.dispose()
         self.mediaDisplaySettingsDisposable?.dispose()
+        self.chatSettingsDisposable?.dispose()
+        self.stickerSettingsDisposable?.dispose()
         self.callDisposable?.dispose()
         self.groupCallDisposable?.dispose()
         self.callStateDisposable?.dispose()
@@ -1084,8 +1127,20 @@ public final class SharedAccountContextImpl: SharedAccountContext {
         self.callPeerDisposable?.dispose()
     }
     
+    // MARK: Swiftgram
+    var didPerformSGUISettingsMigration = false
+    //
+    // MARK: Swiftgram
+    func sgPrimaryAccountContextForMigration() -> AccountContext? {
+        return self.activeAccountsValue?.primary
+    }
+    //
     private var didPerformAccountSettingsImport = false
+    
     private func performAccountSettingsImportIfNecessary() {
+        // MARK: Swiftgram
+        self.performSGUISettingsMigrationIfNecessary()
+        //
         if self.didPerformAccountSettingsImport {
             return
         }
@@ -3767,7 +3822,24 @@ public final class SharedAccountContextImpl: SharedAccountContext {
     }
         
     public func makeStarsTransferScreen(context: AccountContext, starsContext: StarsContext, invoice: TelegramMediaInvoice, source: BotPaymentInvoiceSource, extendedMedia: [TelegramExtendedMedia], inputData: Signal<(StarsContext.State, BotPaymentForm, EnginePeer?, EnginePeer?)?, NoError>, completion: @escaping (Bool) -> Void) -> ViewController {
-        return StarsTransferScreen(context: context, starsContext: starsContext, invoice: invoice, source: source, extendedMedia: extendedMedia, inputData: inputData, completion: completion)
+        return StarsTransferScreen(context: context, starsContext: starsContext, invoice: invoice, source: source, extendedMedia: extendedMedia, inputData: inputData, navigateToPeer: { [weak self] peer in
+            guard let self else {
+                return
+            }
+            if let infoController = self.makePeerInfoController(
+                context: context,
+                updatedPresentationData: nil,
+                peer: peer._asPeer(),
+                mode: .generic,
+                avatarInitiallyExpanded: peer.smallProfileImage != nil,
+                fromChat: false,
+                requestsContext: nil
+            ) {
+                if let navigationController = self.mainWindow?.viewController as? NavigationController {
+                    navigationController.pushViewController(infoController)
+                }
+            }
+        }, completion: completion)
     }
     
     public func makeStarsSubscriptionTransferScreen(context: AccountContext, starsContext: StarsContext, invoice: TelegramMediaInvoice, link: String, inputData: Signal<(StarsContext.State, BotPaymentForm, EnginePeer?, EnginePeer?)?, NoError>, navigateToPeer: @escaping (EnginePeer) -> Void) -> ViewController {
@@ -3851,7 +3923,7 @@ public final class SharedAccountContextImpl: SharedAccountContext {
         return GiftViewScreen(context: context, subject: .wearPreview(gift, attributes))
     }
     
-    public func makeGiftUpgradePreviewScreen(context: AccountContext, attributes: [StarGift.UniqueGift.Attribute], peerName: String) -> ViewController {
+    public func makeGiftUpgradePreviewScreen(context: AccountContext, gift: StarGift.Gift, attributes: [StarGift.UniqueGift.Attribute], peerName: String) -> ViewController {
         return GiftViewScreen(context: context, subject: .upgradePreview(attributes, peerName))
     }
     
@@ -3875,12 +3947,16 @@ public final class SharedAccountContextImpl: SharedAccountContext {
         return giftOfferAlertController(context: context, updatedPresentationData: updatedPresentationData, gift: gift, peer: peer, amount: amount, commit: commit)
     }
     
-    public func makeGiftUpgradeVariantsScreen(context: AccountContext, gift: StarGift, attributes: [StarGift.UniqueGift.Attribute], selectedAttributes: [StarGift.UniqueGift.Attribute]?, focusedAttribute: StarGift.UniqueGift.Attribute?) -> ViewController {
+    public func makeGiftUpgradeVariantsScreen(context: AccountContext, gift: StarGift, crafted: Bool, attributes: [StarGift.UniqueGift.Attribute], selectedAttributes: [StarGift.UniqueGift.Attribute]?, focusedAttribute: StarGift.UniqueGift.Attribute?) -> ViewController {
         return GiftUpgradeVariantsScreen(context: context, gift: gift, attributes: attributes, selectedAttributes: selectedAttributes, focusedAttribute: focusedAttribute)
     }
     
     public func makeGiftAuctionWearPreviewScreen(context: AccountContext, auctionContext: GiftAuctionContext, acquiredGifts: Signal<[GiftAuctionAcquiredGift], NoError>?, attributes: [StarGift.UniqueGift.Attribute], completion: @escaping () -> Void) -> ViewController {
         return GiftAuctionWearPreviewScreen(context: context, auctionContext: auctionContext, attributes: attributes, completion: completion)
+    }
+    
+    public func makeGiftCraftScreen(context: AccountContext, gift: StarGift.UniqueGift, profileGiftsContext: ProfileGiftsContext?) -> ViewController {
+        return GiftCraftScreen(context: context, gift: gift, profileGiftsContext: profileGiftsContext)
     }
     
     public func makeGiftDemoScreen(context: AccountContext) -> ViewController {
@@ -4094,8 +4170,23 @@ public final class SharedAccountContextImpl: SharedAccountContext {
 }
 
 private func peerInfoControllerImpl(context: AccountContext, updatedPresentationData: (PresentationData, Signal<PresentationData, NoError>)?, peer: Peer, mode: PeerInfoControllerMode, avatarInitiallyExpanded: Bool, isOpenedFromChat: Bool, requestsContext: PeerInvitationImportersContext? = nil) -> ViewController? {
+    var switchToMediaTarget: PeerInfoSwitchToMediaTarget?
+    switch mode {
+    case let .media(kind, index):
+        let mappedKind: PeerInfoSwitchToMediaTarget.Kind
+        switch kind {
+        case .photoVideo:
+            mappedKind = .photoVideo
+        case .file:
+            mappedKind = .file
+        }
+        switchToMediaTarget = PeerInfoSwitchToMediaTarget(kind: mappedKind, messageIndex: index)
+    default:
+        break
+    }
+    
     if let _ = peer as? TelegramGroup {
-        return PeerInfoScreenImpl(context: context, updatedPresentationData: updatedPresentationData, peerId: peer.id, avatarInitiallyExpanded: avatarInitiallyExpanded, isOpenedFromChat: isOpenedFromChat, nearbyPeerDistance: nil, reactionSourceMessageId: nil, callMessages: [])
+        return PeerInfoScreenImpl(context: context, updatedPresentationData: updatedPresentationData, peerId: peer.id, avatarInitiallyExpanded: avatarInitiallyExpanded, isOpenedFromChat: isOpenedFromChat, nearbyPeerDistance: nil, reactionSourceMessageId: nil, callMessages: [], switchToMediaTarget: switchToMediaTarget)
     } else if let _ = peer as? TelegramChannel {
         var forumTopicThread: ChatReplyThreadMessage?
         var switchToRecommendedChannels = false
@@ -4118,7 +4209,7 @@ private func peerInfoControllerImpl(context: AccountContext, updatedPresentation
         default:
             break
         }
-        return PeerInfoScreenImpl(context: context, updatedPresentationData: updatedPresentationData, peerId: peer.id, avatarInitiallyExpanded: avatarInitiallyExpanded, isOpenedFromChat: isOpenedFromChat, nearbyPeerDistance: nil, reactionSourceMessageId: nil, callMessages: [], forumTopicThread: forumTopicThread, switchToRecommendedChannels: switchToRecommendedChannels, switchToGiftsTarget: switchToGiftsTarget, switchToGroupsInCommon: switchToGroupsInCommon, switchToStoryFolder: switchToStoryFolder)
+        return PeerInfoScreenImpl(context: context, updatedPresentationData: updatedPresentationData, peerId: peer.id, avatarInitiallyExpanded: avatarInitiallyExpanded, isOpenedFromChat: isOpenedFromChat, nearbyPeerDistance: nil, reactionSourceMessageId: nil, callMessages: [], forumTopicThread: forumTopicThread, switchToRecommendedChannels: switchToRecommendedChannels, switchToGiftsTarget: switchToGiftsTarget, switchToGroupsInCommon: switchToGroupsInCommon, switchToStoryFolder: switchToStoryFolder, switchToMediaTarget: switchToMediaTarget)
     } else if peer is TelegramUser {
         var nearbyPeerDistance: Int32?
         var reactionSourceMessageId: MessageId?
@@ -4171,9 +4262,9 @@ private func peerInfoControllerImpl(context: AccountContext, updatedPresentation
         default:
             break
         }
-        return PeerInfoScreenImpl(context: context, updatedPresentationData: updatedPresentationData, peerId: peer.id, avatarInitiallyExpanded: avatarInitiallyExpanded, isOpenedFromChat: isOpenedFromChat, nearbyPeerDistance: nearbyPeerDistance, reactionSourceMessageId: reactionSourceMessageId, callMessages: callMessages, isMyProfile: isMyProfile, hintGroupInCommon: hintGroupInCommon, forumTopicThread: forumTopicThread, sharedMediaFromForumTopic: sharedMediaFromForumTopic, switchToGiftsTarget: switchToGiftsTarget, switchToGroupsInCommon: switchToGroupsInCommon, switchToStoryFolder: switchToStoryFolder)
+        return PeerInfoScreenImpl(context: context, updatedPresentationData: updatedPresentationData, peerId: peer.id, avatarInitiallyExpanded: avatarInitiallyExpanded, isOpenedFromChat: isOpenedFromChat, nearbyPeerDistance: nearbyPeerDistance, reactionSourceMessageId: reactionSourceMessageId, callMessages: callMessages, isMyProfile: isMyProfile, hintGroupInCommon: hintGroupInCommon, forumTopicThread: forumTopicThread, sharedMediaFromForumTopic: sharedMediaFromForumTopic, switchToGiftsTarget: switchToGiftsTarget, switchToGroupsInCommon: switchToGroupsInCommon, switchToStoryFolder: switchToStoryFolder, switchToMediaTarget: switchToMediaTarget)
     } else if peer is TelegramSecretChat {
-        return PeerInfoScreenImpl(context: context, updatedPresentationData: updatedPresentationData, peerId: peer.id, avatarInitiallyExpanded: avatarInitiallyExpanded, isOpenedFromChat: isOpenedFromChat, nearbyPeerDistance: nil, reactionSourceMessageId: nil, callMessages: [])
+        return PeerInfoScreenImpl(context: context, updatedPresentationData: updatedPresentationData, peerId: peer.id, avatarInitiallyExpanded: avatarInitiallyExpanded, isOpenedFromChat: isOpenedFromChat, nearbyPeerDistance: nil, reactionSourceMessageId: nil, callMessages: [], switchToMediaTarget: switchToMediaTarget)
     }
     return nil
 }
@@ -4183,4 +4274,65 @@ private func useFlatModalCallsPresentation(context: AccountContext) -> Bool {
         return false
     }
     return true
+}
+
+
+
+// MARK: Swiftgram
+extension SharedAccountContextImpl {
+    func initSGIAP(isMainApp: Bool) {
+        if isMainApp {
+            self.SGIAP = SGIAPManager()
+        } else {
+            self.SGIAP = nil
+        }
+    }
+    
+    public func makeSGProController(context: AccountContext) -> ViewController {
+        let controller = sgProController(context: context)
+        return controller
+    }
+
+    public func makeSGPayWallController(context: AccountContext) -> ViewController? {
+        guard #available(iOS 13.0, *) else {
+            return nil
+        }
+        guard let sgIAP = self.SGIAP else {
+            return nil
+        }
+
+        let statusSignal = self.accountManager.sharedData(keys: [ApplicationSpecificSharedDataKeys.sgStatus])
+        |> map { sharedData -> Int64 in
+            let sgStatus = sharedData.entries[ApplicationSpecificSharedDataKeys.sgStatus]?.get(SGStatus.self) ?? SGStatus.default
+            return sgStatus.status
+        }
+
+        let proController = self.makeSGProController(context: context)
+        let sgWebSettings = context.currentAppConfiguration.with { $0 }.sgWebSettings
+        let presentationData = self.currentPresentationData.with { $0 }
+        var payWallController: ViewController? = nil
+        let openUrl: ((String, Bool) -> Void) = { [weak self, weak context] url, forceExternal in
+            guard let strongSelf = self, let strongContext = context, let strongPayWallController = payWallController else {
+                return
+            }
+            let navigationController = strongPayWallController.navigationController as? NavigationController
+            Queue.mainQueue().async {
+                strongSelf.openExternalUrl(context: strongContext, urlContext: .generic, url: url, forceExternal: forceExternal, presentationData: presentationData, navigationController: navigationController, dismissInput: {})
+            }
+        }
+        
+        var supportUrl: String? = nil
+        if let supportUrlString = sgWebSettings.global.proSupportUrl, !supportUrlString.isEmpty, let data = Data(base64Encoded: supportUrlString), let decodedString = String(data: data, encoding: .utf8) {
+            supportUrl = decodedString
+        }
+        payWallController = sgPayWallController(statusSignal: statusSignal, replacementController: proController, presentationData: presentationData, SGIAPManager: sgIAP, openUrl: openUrl, paymentsEnabled: sgWebSettings.global.paymentsEnabled, canBuyInBeta: sgWebSettings.user.canBuyInBeta, openAppStorePage: self.applicationBindings.openAppStorePage, proSupportUrl: supportUrl)
+        return payWallController
+    }
+    
+    public func makeSGUpdateIOSController() -> ViewController {
+        let presentationData = self.currentPresentationData.with { $0 }
+        let controller = textAlertController(sharedContext: self, title: nil, text: "Common.UpdateOS".i18n(presentationData.strings.baseLanguageCode), actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {
+        })])
+        return controller
+    }
 }

@@ -1,3 +1,4 @@
+import SGSimpleSettings
 import Foundation
 import Postbox
 import SwiftSignalKit
@@ -388,9 +389,9 @@ private final class FetchImpl {
             }
             
             if isStory {
-                self.defaultPartSize = 512 * 1024
+                self.defaultPartSize = getSGDownloadPartSize(512 * 1024, fileSize: self.size)
             } else {
-                self.defaultPartSize = 128 * 1024
+                self.defaultPartSize = getSGDownloadPartSize(128 * 1024, fileSize: self.size)
             }
             self.cdnPartSize = 128 * 1024
             
@@ -440,7 +441,7 @@ private final class FetchImpl {
                     maxPartSize: 1 * 1024 * 1024,
                     partAlignment: 4 * 1024,
                     partDivision: 1 * 1024 * 1024,
-                    maxPendingParts: 6,
+                    maxPendingParts: getSGMaxPendingParts(6),
                     decryptionState: decryptionState
                 ))
             }
@@ -696,7 +697,7 @@ private final class FetchImpl {
                             maxPartSize: self.cdnPartSize * 2,
                             partAlignment: self.cdnPartSize,
                             partDivision: 1 * 1024 * 1024,
-                            maxPendingParts: 6,
+                            maxPendingParts: getSGMaxPendingParts(6),
                             decryptionState: nil
                         ))
                         self.update()
@@ -745,7 +746,7 @@ private final class FetchImpl {
                                 maxPartSize: self.defaultPartSize,
                                 partAlignment: 4 * 1024,
                                 partDivision: 1 * 1024 * 1024,
-                                maxPendingParts: 6,
+                                maxPendingParts: getSGMaxPendingParts(6),
                                 decryptionState: nil
                             ))
                             
@@ -801,7 +802,8 @@ private final class FetchImpl {
                 )
                 |> map { result -> FilePartResult in
                     switch result {
-                    case let .cdnFile(bytes):
+                    case let .cdnFile(cdnFileData):
+                        let bytes = cdnFileData.bytes
                         if bytes.size == 0 {
                             return .data(data: Data(), verifyPartHashData: nil)
                         } else {
@@ -819,7 +821,8 @@ private final class FetchImpl {
                                 verifyPartHashData: VerifyPartHashData(fetchRange: fetchRange, fetchedData: fetchedData)
                             )
                         }
-                    case let .cdnFileReuploadNeeded(requestToken):
+                    case let .cdnFileReuploadNeeded(cdnFileReuploadNeededData):
+                        let requestToken = cdnFileReuploadNeededData.requestToken
                         return .cdnRefresh(cdnData: cdnData, refreshToken: requestToken.makeData())
                     }
                 }
@@ -858,9 +861,11 @@ private final class FetchImpl {
                         )
                         |> map { result -> FilePartResult in
                             switch result {
-                            case let .file(_, _, bytes):
+                            case let .file(fileData):
+                                let bytes = fileData.bytes
                                 return .data(data: bytes.makeData(), verifyPartHashData: nil)
-                            case let .fileCdnRedirect(dcId, fileToken, encryptionKey, encryptionIv, fileHashes):
+                            case let .fileCdnRedirect(fileCdnRedirectData):
+                                let (dcId, fileToken, encryptionKey, encryptionIv, fileHashes) = (fileCdnRedirectData.dcId, fileCdnRedirectData.fileToken, fileCdnRedirectData.encryptionKey, fileCdnRedirectData.encryptionIv, fileCdnRedirectData.fileHashes)
                                 let _ = fileHashes
                                 return .cdnRedirect(CdnData(
                                     id: Int(dcId),
@@ -931,7 +936,7 @@ private final class FetchImpl {
                             maxPartSize: self.cdnPartSize * 2,
                             partAlignment: self.cdnPartSize,
                             partDivision: 1 * 1024 * 1024,
-                            maxPendingParts: 6,
+                            maxPendingParts: getSGMaxPendingParts(6),
                             decryptionState: nil
                         ))
                     case let .cdnRefresh(cdnData, refreshToken):
@@ -995,7 +1000,8 @@ private final class FetchImpl {
                         var filledRange = RangeSet<Int64>()
                         for hashItem in result {
                             switch hashItem {
-                            case let .fileHash(offset, limit, hash):
+                            case let .fileHash(fileHashData):
+                                let (offset, limit, hash) = (fileHashData.offset, fileHashData.limit, fileHashData.hash)
                                 let rangeValue: Range<Int64> = offset ..< (offset + Int64(limit))
                                 filledRange.formUnion(RangeSet<Int64>(rangeValue))
                                 state.hashRanges[rangeValue.lowerBound] = HashRangeData(

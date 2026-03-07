@@ -3,6 +3,7 @@ import TelegramCore
 import Postbox
 
 private enum ApplicationSpecificPreferencesKeyValues: Int32 {
+    case SGUISettings = 900
     case voipDerivedState = 16
     case chatArchiveSettings = 17
     case chatListFilterSettings = 18
@@ -12,6 +13,7 @@ private enum ApplicationSpecificPreferencesKeyValues: Int32 {
 }
 
 public struct ApplicationSpecificPreferencesKeys {
+    public static let SGUISettings =  applicationSpecificPreferencesKey(ApplicationSpecificPreferencesKeyValues.SGUISettings.rawValue)
     public static let voipDerivedState = applicationSpecificPreferencesKey(ApplicationSpecificPreferencesKeyValues.voipDerivedState.rawValue)
     public static let chatArchiveSettings = applicationSpecificPreferencesKey(ApplicationSpecificPreferencesKeyValues.chatArchiveSettings.rawValue)
     public static let chatListFilterSettings = applicationSpecificPreferencesKey(ApplicationSpecificPreferencesKeyValues.chatListFilterSettings.rawValue)
@@ -21,6 +23,8 @@ public struct ApplicationSpecificPreferencesKeys {
 }
 
 private enum ApplicationSpecificSharedDataKeyValues: Int32 {
+    // MARK: Swiftgram
+    case sgStatus = 999
     case inAppNotificationSettings = 0
     case presentationPasscodeSettings = 1
     case automaticMediaDownloadSettings = 2
@@ -43,9 +47,12 @@ private enum ApplicationSpecificSharedDataKeyValues: Int32 {
     case drawingSettings = 19
     case mediaDisplaySettings = 20
     case updateSettings = 21
+    case chatSettings = 22
 }
 
 public struct ApplicationSpecificSharedDataKeys {
+    // MARK: Swiftgram
+    public static let sgStatus = applicationSpecificSharedDataKey(ApplicationSpecificSharedDataKeyValues.sgStatus.rawValue)
     public static let inAppNotificationSettings = applicationSpecificSharedDataKey(ApplicationSpecificSharedDataKeyValues.inAppNotificationSettings.rawValue)
     public static let presentationPasscodeSettings = applicationSpecificSharedDataKey(ApplicationSpecificSharedDataKeyValues.presentationPasscodeSettings.rawValue)
     public static let automaticMediaDownloadSettings = applicationSpecificSharedDataKey(ApplicationSpecificSharedDataKeyValues.automaticMediaDownloadSettings.rawValue)
@@ -68,6 +75,7 @@ public struct ApplicationSpecificSharedDataKeys {
     public static let drawingSettings = applicationSpecificPreferencesKey(ApplicationSpecificSharedDataKeyValues.drawingSettings.rawValue)
     public static let mediaDisplaySettings = applicationSpecificPreferencesKey(ApplicationSpecificSharedDataKeyValues.mediaDisplaySettings.rawValue)
     public static let updateSettings = applicationSpecificPreferencesKey(ApplicationSpecificSharedDataKeyValues.updateSettings.rawValue)
+    public static let chatSettings = applicationSpecificPreferencesKey(ApplicationSpecificSharedDataKeyValues.chatSettings.rawValue)
 }
 
 private enum ApplicationSpecificItemCacheCollectionIdValues: Int8 {
@@ -104,12 +112,12 @@ public struct ApplicationSpecificItemCacheCollectionId {
 private enum ApplicationSpecificOrderedItemListCollectionIdValues: Int32 {
     case webSearchRecentQueries = 0
     case wallpaperSearchRecentQueries = 1
-    case settingsSearchRecentItems = 2
     case localThemes = 3
     case storyDrafts = 4
     case storySources = 5
     case hashtagSearchRecentQueries = 6
     case browserRecentlyVisited = 7
+    case settingsSearchRecentItems = 8
 }
 
 public struct ApplicationSpecificOrderedItemListCollectionId {

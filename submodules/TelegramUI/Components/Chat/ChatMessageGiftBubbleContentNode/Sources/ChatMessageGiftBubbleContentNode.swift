@@ -282,7 +282,7 @@ public class ChatMessageGiftBubbleContentNode: ChatMessageBubbleContentNode {
                 switch action.action {
                 case let .starGift(gift, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _):
                     releasedBy = gift.releasedBy
-                case let .starGiftUnique(gift, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _):
+                case let .starGiftUnique(gift, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _):
                     releasedBy = gift.releasedBy
                 default:
                     break
@@ -378,6 +378,17 @@ public class ChatMessageGiftBubbleContentNode: ChatMessageBubbleContentNode {
     }
         
     override public func asyncLayoutContent() -> (_ item: ChatMessageBubbleContentItem, _ layoutConstants: ChatMessageItemLayoutConstants, _ preparePosition: ChatMessageBubblePreparePosition, _ messageSelection: Bool?, _ constrainedSize: CGSize, _ avatarInset: CGFloat) -> (ChatMessageBubbleContentProperties, unboundSize: CGSize?, maxWidth: CGFloat, layout: (CGSize, ChatMessageBubbleContentPosition) -> (CGFloat, (CGFloat) -> (CGSize, (ListViewItemUpdateAnimation, Bool, ListViewItemApply?) -> Void))) {
+        return { item, _, _, _, _, _ in
+            let contentProperties = ChatMessageBubbleContentProperties(hidesSimpleAuthorHeader: true, headerSpacing: 0.0, hidesBackground: .always, forceFullCorners: false, forceAlignment: .center)
+            return (contentProperties, nil, 220.0, { _, _ in
+                return (220.0, { _ in
+                    return (CGSize(width: 220.0, height: 120.0), { [weak self] _, _, _ in
+                        self?.item = item
+                    })
+                })
+            })
+        }
+#if false
         let makeLabelLayout = TextNode.asyncLayout(self.labelNode)
         let makeTitleLayout = TextNode.asyncLayout(self.titleNode)
         let makeSubtitleLayout = TextNodeWithEntities.asyncLayout(self.subtitleNode)
@@ -402,10 +413,10 @@ public class ChatMessageGiftBubbleContentNode: ChatMessageBubbleContentNode {
         
         let cachedTonImage = self.cachedTonImage
         
-        return { item, layoutConstants, _, _, _, _ in
+        let asyncLayout: (ChatMessageBubbleContentItem, ChatMessageItemLayoutConstants, ChatMessageBubblePreparePosition, Bool?, CGSize, CGFloat) -> (ChatMessageBubbleContentProperties, CGSize?, CGFloat, (CGSize, ChatMessageBubbleContentPosition) -> (CGFloat, (CGFloat) -> (CGSize, (ListViewItemUpdateAnimation, Bool, ListViewItemApply?) -> Void))) = { (item: ChatMessageBubbleContentItem, layoutConstants: ChatMessageItemLayoutConstants, preparePosition: ChatMessageBubblePreparePosition, messageSelection: Bool?, constrainedSize: CGSize, avatarInset: CGFloat) in
             let contentProperties = ChatMessageBubbleContentProperties(hidesSimpleAuthorHeader: true, headerSpacing: 0.0, hidesBackground: .always, forceFullCorners: false, forceAlignment: .center)
                         
-            return (contentProperties, nil, CGFloat.greatestFiniteMagnitude, { constrainedSize, position in
+            return (contentProperties, nil, CGFloat.greatestFiniteMagnitude, { (constrainedSize: CGSize, position: ChatMessageBubbleContentPosition) -> (CGFloat, (CGFloat) -> (CGSize, (ListViewItemUpdateAnimation, Bool, ListViewItemApply?) -> Void)) in
                 var giftSize = CGSize(width: 220.0, height: 240.0)
                 
                 let incoming: Bool
@@ -1471,6 +1482,8 @@ public class ChatMessageGiftBubbleContentNode: ChatMessageBubbleContentNode {
                 })
             })
         }
+        return asyncLayout
+#endif
     }
 
     override public func updateAbsoluteRect(_ rect: CGRect, within containerSize: CGSize) {

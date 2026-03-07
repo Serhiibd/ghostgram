@@ -56,6 +56,10 @@ open class GalleryItemNode: ASDisplayNode {
         return .single(nil)
     }
     
+    open func titleContent() -> Signal<GalleryTitleView.Content?, NoError> {
+        return .single(nil)
+    }
+    
     open func rightBarButtonItem() -> Signal<UIBarButtonItem?, NoError> {
         return .single(nil)
     }

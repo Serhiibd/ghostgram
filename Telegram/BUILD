@@ -245,6 +245,7 @@ filegroup(
     name = "AppStringResources",
     srcs = [
         "Telegram-iOS/en.lproj/Localizable.strings",
+        "//Swiftgram/SGStrings:SGLocalizableStrings",
     ] + [
         "{}.lproj/Localizable.strings".format(language) for language in empty_languages
     ],
@@ -349,6 +350,10 @@ swift_library(
         "Telegram-iOS/Application.swift",
     ]),
     data = [
+        "//Swiftgram/SGSettingsUI:SGUIAssets",
+        "//Swiftgram/SGPayWall:SGPayWallAssets",
+        "//Swiftgram/SGAppBadgeAssets:SGAppBadgeAssets",
+        "//Swiftgram/SGNY:SGNYAssets",
         ":Icons",
         ":AppResources",
         ":AppIntentVocabularyResources",

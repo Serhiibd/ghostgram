@@ -1,3 +1,4 @@
+import SGSimpleSettings
 import Foundation
 import UIKit
 import AsyncDisplayKit
@@ -349,16 +350,53 @@ public final class ChatMessageInteractiveFileNode: ASDisplayNode {
     }
     
     private func transcribe() {
-        guard let _ = self.arguments, let context = self.context, let message = self.message else {
+        guard let arguments = self.arguments, let context = self.context, let message = self.message else {
             return
         }
         
-        if !context.isPremium, case .inProgress = self.audioTranscriptionState {
+        if /*!context.isPremium,*/ case .inProgress = self.audioTranscriptionState {
             return
         }
         
         let presentationData = context.sharedContext.currentPresentationData.with { $0 }
-        // GHOSTGRAM: Premium check removed - local transcription is free!
+        let premiumConfiguration = PremiumConfiguration.with(appConfiguration: arguments.context.currentAppConfiguration.with { $0 })
+        
+        let transcriptionText = self.forcedAudioTranscriptionText ?? transcribedText(message: message)
+        // MARK: Swiftgram
+        if transcriptionText == nil && false {
+            if premiumConfiguration.audioTransciptionTrialCount > 0 {
+                if !arguments.associatedData.isPremium {
+                    if self.presentAudioTranscriptionTooltip(finished: false) {
+                        return
+                    }
+                }
+            } else {
+                guard arguments.associatedData.isPremium else {
+                    if self.hapticFeedback == nil {
+                        self.hapticFeedback = HapticFeedback()
+                    }
+                    self.hapticFeedback?.impact(.medium)
+                    
+                    let tipController = UndoOverlayController(presentationData: presentationData, content: .universal(animation: "anim_voiceToText", scale: 0.065, colors: [:], title: nil, text: presentationData.strings.Message_AudioTranscription_SubscribeToPremium, customUndoText: presentationData.strings.Message_AudioTranscription_SubscribeToPremiumAction, timeout: nil), elevatedLayout: false, position: .top, animateInAsReplacement: false, action: { action in
+                        if case .undo = action {
+                            var replaceImpl: ((ViewController) -> Void)?
+                            let controller = context.sharedContext.makePremiumDemoController(context: context, subject: .voiceToText, forceDark: false, action: {
+                                let controller = context.sharedContext.makePremiumIntroController(context: context, source: .settings, forceDark: false, dismissed: nil)
+                                replaceImpl?(controller)
+                            }, dismissed: nil)
+                            replaceImpl = { [weak controller] c in
+                                controller?.replace(with: c)
+                            }
+                            arguments.controllerInteraction.navigationController()?.pushViewController(controller, animated: true)
+                            
+                            let _ = ApplicationSpecificNotice.incrementAudioTranscriptionSuggestion(accountManager: context.sharedContext.accountManager).startStandalone()
+                        }
+                        return false })
+                    arguments.controllerInteraction.presentControllerInCurrent(tipController, nil)
+                    return
+                }
+            }
+        }
         
         var shouldBeginTranscription = false
         var shouldExpandNow = false
@@ -384,8 +422,7 @@ public final class ChatMessageInteractiveFileNode: ASDisplayNode {
                 self.audioTranscriptionState = .inProgress
                 self.requestUpdateLayout(true)
                 
-                // GHOSTGRAM: Always use local transcription (free, private, on-device!)
-                if true {
+                if context.sharedContext.immediateExperimentalUISettings.localTranscription || !arguments.associatedData.isPremium || SGSimpleSettings.shared.transcriptionBackend == SGSimpleSettings.TranscriptionBackend.apple.rawValue {
                     let appLocale = presentationData.strings.baseLanguageCode
                     
                     let signal: Signal<LocallyTranscribedAudio?, NoError> = context.engine.data.get(TelegramEngine.EngineData.Item.Messages.Message(id: message.id))
@@ -417,7 +454,8 @@ public final class ChatMessageInteractiveFileNode: ASDisplayNode {
                         guard let result = result else {
                             return .single(nil)
                         }
-                        return transcribeAudio(path: result, appLocale: appLocale)
+                        
+                        return transcribeAudio(path: result, appLocale: arguments.controllerInteraction.sgGetChatPredictedLang() ?? appLocale)
                     }
                     
                     self.transcribeDisposable = (signal
@@ -605,6 +643,8 @@ public final class ChatMessageInteractiveFileNode: ASDisplayNode {
                 var audioWaveform: AudioWaveform?
                 var isVoice = false
                 var audioDuration: Int32 = 0
+                var isConsumed: Bool?
+                
                 var consumableContentIcon: UIImage?
                 for attribute in arguments.message.attributes {
                     if let attribute = attribute as? ConsumableContentMessageAttribute {
@@ -615,6 +655,7 @@ public final class ChatMessageInteractiveFileNode: ASDisplayNode {
                                 consumableContentIcon = PresentationResourcesChat.chatBubbleConsumableContentOutgoingIcon(arguments.presentationData.theme.theme)
                             }
                         }
+                        isConsumed = attribute.consumed
                         break
                     }
                 }
@@ -733,8 +774,25 @@ public final class ChatMessageInteractiveFileNode: ASDisplayNode {
                 if Namespaces.Message.allNonRegular.contains(arguments.message.id.namespace) {
                     displayTranscribe = false
                 } else if arguments.message.id.peerId.namespace != Namespaces.Peer.SecretChat && !isViewOnceMessage && !arguments.presentationData.isPreview {
-                    // GHOSTGRAM: Always show transcribe button for voice messages
-                    displayTranscribe = true
+                    let premiumConfiguration = PremiumConfiguration.with(appConfiguration: arguments.context.currentAppConfiguration.with { $0 })
+                    // MARK: Swiftgram
+                    if arguments.associatedData.isPremium || true {
+                        displayTranscribe = true
+                    } else if premiumConfiguration.audioTransciptionTrialCount > 0 {
+                        if arguments.incoming {
+                            if audioDuration < premiumConfiguration.audioTransciptionTrialMaxDuration {
+                                displayTranscribe = true
+                            }
+                        }
+                    } else if arguments.associatedData.alwaysDisplayTranscribeButton.canBeDisplayed {
+                        if audioDuration >= 60 {
+                            displayTranscribe = true
+                        } else if arguments.incoming && isConsumed == false && arguments.associatedData.alwaysDisplayTranscribeButton.displayForNotConsumed {
+                            displayTranscribe = true
+                        }
+                    } else if arguments.associatedData.alwaysDisplayTranscribeButton.providedByGroupBoost {
+                        displayTranscribe = true
+                    }
                 }
                 
                 let transcribedText = forcedAudioTranscriptionText ?? transcribedText(message: arguments.message)
@@ -749,7 +807,7 @@ public final class ChatMessageInteractiveFileNode: ASDisplayNode {
                 }
                 
                 let currentTime = Int32(Date().timeIntervalSince1970)
-                if transcribedText == nil, let cooldownUntilTime = arguments.associatedData.audioTranscriptionTrial.cooldownUntilTime, cooldownUntilTime > currentTime {
+                if transcribedText == nil, let cooldownUntilTime = arguments.associatedData.audioTranscriptionTrial.cooldownUntilTime, cooldownUntilTime > currentTime, { return false }() /* MARK: Swiftgram */ {
                     updatedAudioTranscriptionState = .locked
                 }
                 
@@ -899,6 +957,7 @@ public final class ChatMessageInteractiveFileNode: ASDisplayNode {
                         context: arguments.context,
                         presentationData: arguments.presentationData,
                         edited: edited && !arguments.presentationData.isPreview,
+                        isDeleted: arguments.topMessage.ghostgramIsDeleted,
                         impressionCount: !arguments.presentationData.isPreview ? viewCount : nil,
                         dateText: dateText,
                         type: statusType,
@@ -2173,4 +2232,3 @@ public final class FileMessageSelectionNode: ASDisplayNode {
         self.checkNode.frame = CGRect(origin: checkOrigin, size: checkSize)
     }
 }
-

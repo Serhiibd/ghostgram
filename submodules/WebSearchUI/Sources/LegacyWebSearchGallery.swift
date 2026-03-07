@@ -346,7 +346,10 @@ func presentLegacyWebSearchGallery(context: AccountContext, peer: EnginePeer?, t
     model.storeOriginalImageForItem = { item, image in
         editingContext.setOriginalImage(image, for: item, synchronous: false)
     }
-    model.willFinishEditingItem = { item, adjustments, representation, hasChanges in
+    model.willFinishEditingItem = { (item: TGMediaEditableItem?, adjustments: TGMediaEditAdjustments?, representation: Any?, hasChanges: Bool) in
+        guard let item else {
+            return
+        }
         if hasChanges {
             editingContext.setAdjustments(adjustments, for: item)
         }
@@ -355,10 +358,16 @@ func presentLegacyWebSearchGallery(context: AccountContext, peer: EnginePeer?, t
             selectionContext.setItem(item, selected: true)
         }
     }
-    model.didFinishEditingItem = { item, adjustments, result, thumbnail in
+    model.didFinishEditingItem = { (item: TGMediaEditableItem?, adjustments: TGMediaEditAdjustments?, result: UIImage?, thumbnail: UIImage?) in
+        guard let item, let result, let thumbnail else {
+            return
+        }
         editingContext.setImage(result, thumbnailImage: thumbnail, for: item, synchronous: true)
     }
-    model.saveItemCaption = { item, caption in
+    model.saveItemCaption = { (item: TGMediaEditableItem?, caption: NSAttributedString?) in
+        guard let item else {
+            return
+        }
         editingContext.setCaption(caption, for: item)
         if let selectionContext = selectionContext, let caption = caption, caption.length > 0, let item = item as? TGMediaSelectableItem {
             selectionContext.setItem(item, selected: true)
@@ -367,7 +376,7 @@ func presentLegacyWebSearchGallery(context: AccountContext, peer: EnginePeer?, t
     if let selectionContext = selectionContext {
         model.interfaceView.updateSelectionInterface(selectionContext.count(), counterVisible: selectionContext.count() > 0, animated: false)
     }
-    model.interfaceView.donePressed = { item in
+    model.interfaceView.donePressed = { (item: TGModernGalleryItem?) in
         if let item = item as? LegacyWebSearchGalleryItem {
             controller.dismissWhenReady(animated: true)
             completed(item.item.result)

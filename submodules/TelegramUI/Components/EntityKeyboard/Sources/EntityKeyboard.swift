@@ -1,3 +1,4 @@
+import SGSimpleSettings
 import Foundation
 import UIKit
 import Display
@@ -558,9 +559,22 @@ public final class EntityKeyboardComponent: Component {
             
             let emojiContentItemIdUpdated = ActionSlot<(AnyHashable, AnyHashable?, ComponentTransition)>()
             if let emojiContent = component.emojiContent {
-                contents.append(AnyComponentWithIdentity(id: "emoji", component: AnyComponent(emojiContent)))
+                let effectiveEmojiContent: EmojiPagerContentComponent
+                // MARK: Swiftgram
+                if SGSimpleSettings.shared.defaultEmojisFirst {
+                    effectiveEmojiContent = emojiContent.withUpdatedItemGroups(
+                        panelItemGroups: sgPatchEmojiKeyboardItems(emojiContent.panelItemGroups),
+                        contentItemGroups: sgPatchEmojiKeyboardItems(emojiContent.contentItemGroups),
+                        itemContentUniqueId: emojiContent.itemContentUniqueId,
+                        emptySearchResults: emojiContent.emptySearchResults,
+                        searchState: emojiContent.searchState
+                    )
+                } else {
+                    effectiveEmojiContent = emojiContent
+                }
+                contents.append(AnyComponentWithIdentity(id: "emoji", component: AnyComponent(effectiveEmojiContent)))
                 var topEmojiItems: [EntityKeyboardTopPanelComponent.Item] = []
-                for itemGroup in emojiContent.panelItemGroups {
+                for itemGroup in effectiveEmojiContent.panelItemGroups {
                     if !itemGroup.items.isEmpty {
                         if let id = itemGroup.groupId.base as? String, id != "peerSpecific" {
                             if id == "recent" || id == "liked" || id == "collectible" {
@@ -612,12 +626,12 @@ public final class EntityKeyboardComponent: Component {
                                     id: itemGroup.supergroupId,
                                     isReorderable: !itemGroup.isFeatured,
                                     content: AnyComponent(EntityKeyboardAnimationTopPanelComponent(
-                                        context: emojiContent.context,
+                                        context: effectiveEmojiContent.context,
                                         item: itemGroup.headerItem ?? animationData,
                                         isFeatured: itemGroup.isFeatured,
                                         isPremiumLocked: itemGroup.isPremiumLocked,
-                                        animationCache: emojiContent.animationCache,
-                                        animationRenderer: emojiContent.animationRenderer,
+                                        animationCache: effectiveEmojiContent.animationCache,
+                                        animationRenderer: effectiveEmojiContent.animationRenderer,
                                         theme: component.theme,
                                         title: itemGroup.title ?? "",
                                         customTintColor: component.customTintColor ?? itemGroup.customTintColor,

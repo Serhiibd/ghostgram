@@ -18,6 +18,17 @@ import TranslateUI
 import TelegramUIPreferences
 import TelegramNotices
 import PremiumUI
+import SGSimpleSettings
+
+private func sgChatTranslationAvailable(isPremium: Bool, peer: Peer?) -> Bool {
+    if isPremium || SGSimpleSettings.shared.translationBackendEnum != .default {
+        return true
+    }
+    if let channel = peer as? TelegramChannel, channel.flags.contains(.autoTranslateEnabled) {
+        return true
+    }
+    return false
+}
 
 final class ChatTranslationPanelNode: ASDisplayNode {
     private let context: AccountContext
@@ -183,11 +194,7 @@ final class ChatTranslationPanelNode: ASDisplayNode {
     
     @objc private func closePressed() {
         let isPremium = self.chatInterfaceState?.isPremium ?? false
-        
-        var translationAvailable = isPremium
-        if let channel = self.chatInterfaceState?.renderedPeer?.chatMainPeer as? TelegramChannel, channel.flags.contains(.autoTranslateEnabled) {
-            translationAvailable = true
-        }
+        let translationAvailable = sgChatTranslationAvailable(isPremium: isPremium, peer: self.chatInterfaceState?.renderedPeer?.chatMainPeer)
         
         if translationAvailable {
             self.interfaceInteraction?.hideTranslationPanel()
@@ -202,11 +209,7 @@ final class ChatTranslationPanelNode: ASDisplayNode {
         }
         
         let isPremium = self.chatInterfaceState?.isPremium ?? false
-        
-        var translationAvailable = isPremium
-        if let channel = self.chatInterfaceState?.renderedPeer?.chatMainPeer as? TelegramChannel, channel.flags.contains(.autoTranslateEnabled) {
-            translationAvailable = true
-        }
+        let translationAvailable = sgChatTranslationAvailable(isPremium: isPremium, peer: self.chatInterfaceState?.renderedPeer?.chatMainPeer)
         
         if translationAvailable {
             self.interfaceInteraction?.toggleTranslation(translationState.isEnabled ? .original : .translated)

@@ -2008,7 +2008,7 @@ extension ChatControllerImpl {
                     }
                 }
             }))
-        }, forwardSelectedMessages: { [weak self] in
+        }, forwardSelectedMessages: { [weak self] _ in
             if let strongSelf = self {
                 strongSelf.commitPurposefulAction()
                 if let forwardMessageIdsSet = strongSelf.presentationInterfaceState.interfaceState.selectionState?.selectedIds {
@@ -2023,7 +2023,7 @@ extension ChatControllerImpl {
                     strongSelf.forwardMessages(messageIds: forwardMessageIds, options: strongSelf.presentationInterfaceState.interfaceState.forwardOptionsState, resetCurrent: true)
                 }
             }
-        }, forwardMessages: { [weak self] messages in
+        }, forwardMessages: { [weak self] messages, action in
             if let strongSelf = self, !messages.isEmpty {
                 guard !strongSelf.presentAccountFrozenInfoIfNeeded(delay: true) else {
                     return
@@ -2031,7 +2031,16 @@ extension ChatControllerImpl {
                 
                 strongSelf.commitPurposefulAction()
                 let forwardMessageIds = messages.map { $0.id }.sorted()
-                strongSelf.forwardMessages(messageIds: forwardMessageIds)
+                switch action {
+                case "forwardMessagesToCloud":
+                    strongSelf.forwardMessagesToCloud(messageIds: forwardMessageIds, removeNames: false, openCloud: false)
+                case "forwardMessagesWithNoNames":
+                    strongSelf.forwardMessages(messageIds: forwardMessageIds, options: ChatInterfaceForwardOptionsState(hideNames: true, hideCaptions: false, unhideNamesOnCaptionChange: false))
+                case "forwardMessagesToCloudWithNoNamesAndOpen":
+                    strongSelf.forwardMessagesToCloud(messageIds: forwardMessageIds, removeNames: true, openCloud: true)
+                default:
+                    strongSelf.forwardMessages(messageIds: forwardMessageIds)
+                }
             }
         }, updateForwardOptionsState: { [weak self] f in
             if let strongSelf = self {

@@ -339,7 +339,7 @@ class ChannelMembersSearchControllerNode: ASDisplayNode {
                                         }
                                 }
                             }
-                        case .promote:
+                        case .promote, .ownershipTransfer:
                             if peer.id == context.account.peerId {
                                 continue
                             }
@@ -531,7 +531,7 @@ class ChannelMembersSearchControllerNode: ASDisplayNode {
                     var label: String?
                     var enabled = true
                     switch mode {
-                        case .ban, .promote:
+                        case .ban, .promote, .ownershipTransfer:
                             if participant.peer.id == context.account.peerId {
                                 continue participantsLoop
                             }

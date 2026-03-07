@@ -126,9 +126,9 @@ public final class EntityKeyboardAnimationData: Equatable {
         var file: TelegramMediaFile?
         var color: UIColor?
         for attribute in gift.attributes {
-            if case let .model(_, fileValue, _) = attribute {
+            if case let StarGift.UniqueGift.Attribute.model(_, fileValue, _, _) = attribute {
                 file = fileValue
-            } else if case let .backdrop(_, _, innerColor, outerColor, _, _, _) = attribute {
+            } else if case let StarGift.UniqueGift.Attribute.backdrop(_, _, innerColor, outerColor, _, _, _) = attribute {
                 color = UIColor(rgb: UInt32(bitPattern: innerColor))
                 let _ = outerColor
             }

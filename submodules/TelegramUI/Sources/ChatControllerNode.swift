@@ -1,4 +1,5 @@
 import Foundation
+import SGSimpleSettings
 import UIKit
 import AsyncDisplayKit
 import Postbox
@@ -129,7 +130,6 @@ class HistoryNodeContainer: ASDisplayNode {
     var isSecret: Bool {
         didSet {
             if self.isSecret != oldValue {
-                // MISC: Bypass screenshot protection if enabled
                 let shouldDisable = self.isSecret && !MiscSettingsManager.shared.shouldBypassScreenshotProtection
                 setLayerDisableScreenshots(self.layer, shouldDisable)
             }
@@ -146,7 +146,6 @@ class HistoryNodeContainer: ASDisplayNode {
         super.init()
         
         if self.isSecret {
-            // MISC: Bypass screenshot protection if enabled
             let shouldDisable = self.isSecret && !MiscSettingsManager.shared.shouldBypassScreenshotProtection
             setLayerDisableScreenshots(self.layer, shouldDisable)
         }
@@ -1109,8 +1108,8 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
                     statusBar.updateStatusBarStyle(.White, animated: true)
                 } else {
                     let statusBarStyle: StatusBarStyle
-                    if let isDark = self.backgroundNode.isDark {
-                        if isDark {
+                    if let contentStats = self.backgroundNode.contentStats {
+                        if contentStats.isDark {
                             statusBarStyle = .White
                         } else {
                             statusBarStyle = .Black
@@ -1129,7 +1128,6 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
             }
         }
         
-        // GHOSTGRAM: Bypass screenshot protection if enabled in Misc settings
         let effectiveCopyProtection = MiscSettingsManager.shared.shouldBypassScreenshotProtection ? false : self.chatPresentationInterfaceState.copyProtectionEnabled
         let isSecret = effectiveCopyProtection || self.chatLocation.peerId?.namespace == Namespaces.Peer.SecretChat || self.chatLocation.peerId?.isVerificationCodes == true
         if self.historyNodeContainer.isSecret != isSecret {
@@ -1644,6 +1642,10 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
             dismissedFloatingTopicsPanel = floatingTopicsPanel
         }
         
+        if floatingTopicsPanelInsets.top != 0.0 {
+            floatingTopicsPanelInsets.top += 8.0
+        }
+        
         var isSidebarOpen = false
         if let floatingTopicsPanel = self.floatingTopicsPanel {
             isSidebarOpen = floatingTopicsPanel.component.location == .side
@@ -1704,8 +1706,21 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
         var dismissedAccessoryPanelNode: AccessoryPanelNode?
         var dismissedInputContextPanelNode: ChatInputContextPanelNode?
         var dismissedOverlayContextPanelNode: ChatInputContextPanelNode?
-        
-        let inputPanelNodes = inputPanelForChatPresentationIntefaceState(self.chatPresentationInterfaceState, context: self.context, currentPanel: self.inputPanelNode, currentSecondaryPanel: self.secondaryInputPanelNode, textInputPanelNode: self.textInputPanelNode, chatControllerInteraction: self.controllerInteraction, interfaceInteraction: self.interfaceInteraction)
+        // MARK: Swiftgram
+        var inputPanelNodes = inputPanelForChatPresentationIntefaceState(self.chatPresentationInterfaceState, context: self.context, currentPanel: self.inputPanelNode, currentSecondaryPanel: self.secondaryInputPanelNode, textInputPanelNode: self.textInputPanelNode, chatControllerInteraction: self.controllerInteraction, interfaceInteraction: self.interfaceInteraction)
+        if SGSimpleSettings.shared.hideChannelBottomButton {
+            // We still need the panel for messages multi-select or search. Likely can break in future.
+            if self.chatPresentationInterfaceState.interfaceState.selectionState != nil || self.chatPresentationInterfaceState.search != nil {
+                self.inputPanelBackgroundNode.isHidden = false
+            } else if (inputPanelNodes.primary != nil || inputPanelNodes.secondary != nil)  {
+                // So there should be some panel, but user don't want it. Let's check if our logic will hide it
+                inputPanelNodes = inputPanelForChatPresentationIntefaceState(self.chatPresentationInterfaceState, context: self.context, currentPanel: self.inputPanelNode, currentSecondaryPanel: self.secondaryInputPanelNode, textInputPanelNode: self.textInputPanelNode, chatControllerInteraction: self.controllerInteraction, interfaceInteraction: self.interfaceInteraction)
+                if inputPanelNodes.primary == nil && inputPanelNodes.secondary == nil {
+                    // Looks like we're eligible to hide the panel, let's remove safe area fill as well
+                    self.inputPanelBackgroundNode.isHidden = true
+                }
+            }
+        }
         
         let inputPanelBottomInset = max(insets.bottom, inputPanelBottomInsetTerm)
         
@@ -1931,7 +1946,7 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
 
         updateExtraNavigationBarBackgroundHeight(0.0, 0.0, nil, transition)
         
-        var sidePanelTopInset: CGFloat = insets.top + 4.0
+        var sidePanelTopInset: CGFloat = insets.top - 4.0
         
         let contentBounds = CGRect(x: 0.0, y: 0.0, width: layout.size.width - wrappingInsets.left - wrappingInsets.right, height: layout.size.height - wrappingInsets.top - wrappingInsets.bottom)
         
@@ -2241,24 +2256,38 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
             }
         }
         
-        var bottomBackgroundEdgeEffectNode: WallpaperEdgeEffectNode?
-        if let current = self.bottomBackgroundEdgeEffectNode {
-            bottomBackgroundEdgeEffectNode = current
+        let edgeEffectAlpha: CGFloat
+        if case .image = self.chatPresentationInterfaceState.chatWallpaper {
+            edgeEffectAlpha = 0.7
+        } else if case .color = self.chatPresentationInterfaceState.chatWallpaper {
+            edgeEffectAlpha = 0.85
         } else {
-            if let value = self.backgroundNode.makeEdgeEffectNode() {
-                bottomBackgroundEdgeEffectNode = value
-                self.bottomBackgroundEdgeEffectNode = value
-                self.historyNodeContainer.view.superview?.insertSubview(value.view, aboveSubview: self.historyNodeContainer.view)
+            edgeEffectAlpha = 0.75
+        }
+        
+        
+        var bottomBackgroundEdgeEffectNode: WallpaperEdgeEffectNode?
+        if self.historyNode.rotated {
+            if let current = self.bottomBackgroundEdgeEffectNode {
+                bottomBackgroundEdgeEffectNode = current
+            } else {
+                if let value = self.backgroundNode.makeEdgeEffectNode() {
+                    bottomBackgroundEdgeEffectNode = value
+                    self.bottomBackgroundEdgeEffectNode = value
+                    value.isUserInteractionEnabled = false
+                    self.historyNodeContainer.view.superview?.insertSubview(value.view, aboveSubview: self.historyNodeContainer.view)
+                }
             }
         }
         if let bottomBackgroundEdgeEffectNode {
             var blurFrame = inputBackgroundFrame
-            blurFrame.origin.y -= 18.0
+            blurFrame.origin.y -= 20.0
             blurFrame.size.height = max(100.0, layout.size.height - blurFrame.origin.y)
             transition.updateFrame(node: bottomBackgroundEdgeEffectNode, frame: blurFrame)
             bottomBackgroundEdgeEffectNode.update(
                 rect: blurFrame,
-                edge: WallpaperEdgeEffectEdge(edge: .bottom, size: 100.0),
+                edge: WallpaperEdgeEffectEdge(edge: .bottom, size: min(60.0, blurFrame.height)),
+                alpha: edgeEffectAlpha,
                 blur: false,
                 containerSize: wallpaperBounds.size,
                 transition: transition
@@ -2275,7 +2304,11 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
             }
         }
         
-        var contentBottomInset: CGFloat = inputPanelsHeight + 11.0 + inputPanelsInset
+        var contentBottomInset: CGFloat = inputPanelsHeight + inputPanelsInset
+        if previewing {
+        } else {
+            contentBottomInset += 11.0
+        }
         
         if let scrollContainerNode = self.scrollContainerNode {
             transition.updateFrame(node: scrollContainerNode, frame: CGRect(origin: CGPoint(), size: layout.size))
@@ -2307,7 +2340,6 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
         }
         
         if let containerNode = self.containerNode {
-            contentBottomInset += 8.0
             let containerNodeFrame = CGRect(origin: CGPoint(x: wrappingInsets.left, y: wrappingInsets.top), size: CGSize(width: contentBounds.size.width, height: contentBounds.size.height - containerInsets.bottom - inputPanelsHeight - 8.0))
             transition.updateFrame(node: containerNode, frame: containerNodeFrame)
             
@@ -2322,7 +2354,7 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
             overlayNavigationBar.updateLayout(size: barFrame.size, transition: transition)
         }
         
-        var listInsets = UIEdgeInsets(top: containerInsets.bottom + contentBottomInset, left: containerInsets.right, bottom: containerInsets.top + 6.0, right: containerInsets.left)
+        var listInsets = UIEdgeInsets(top: containerInsets.bottom + contentBottomInset, left: containerInsets.right, bottom: containerInsets.top, right: containerInsets.left)
         let listScrollIndicatorInsets = UIEdgeInsets(top: containerInsets.bottom + inputPanelsHeight, left: containerInsets.right, bottom: containerInsets.top, right: containerInsets.left)
         
         var childContentInsets: UIEdgeInsets = containerInsets
@@ -2446,23 +2478,28 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
         })
         
         var topBackgroundEdgeEffectNode: WallpaperEdgeEffectNode?
-        if let current = self.topBackgroundEdgeEffectNode {
-            topBackgroundEdgeEffectNode = current
-        } else {
-            if let value = self.backgroundNode.makeEdgeEffectNode() {
-                topBackgroundEdgeEffectNode = value
-                self.topBackgroundEdgeEffectNode = value
-                self.historyNodeContainer.view.superview?.insertSubview(value.view, aboveSubview: self.historyNodeContainer.view)
+        if self.historyNode.rotated {
+            if let current = self.topBackgroundEdgeEffectNode {
+                topBackgroundEdgeEffectNode = current
+            } else {
+                if let value = self.backgroundNode.makeEdgeEffectNode() {
+                    topBackgroundEdgeEffectNode = value
+                    self.topBackgroundEdgeEffectNode = value
+                    value.isUserInteractionEnabled = false
+                    self.historyNodeContainer.view.superview?.insertSubview(value.view, aboveSubview: self.historyNodeContainer.view)
+                }
             }
         }
         if let topBackgroundEdgeEffectNode {
-            var blurFrame = CGRect(origin: CGPoint(), size: CGSize(width: layout.size.width, height: max(100.0, listInsets.bottom + 10.0)))
-            blurFrame.origin.y = listInsets.bottom + 10.0 - blurFrame.height
+            let topExtent: CGFloat = 34.0
+            var blurFrame = CGRect(origin: CGPoint(), size: CGSize(width: layout.size.width, height: max(100.0, listInsets.bottom + topExtent)))
+            blurFrame.origin.y = listInsets.bottom + topExtent - blurFrame.height
             transition.updateFrame(node: topBackgroundEdgeEffectNode, frame: blurFrame)
             topBackgroundEdgeEffectNode.update(
                 rect: blurFrame,
-                edge: WallpaperEdgeEffectEdge(edge: .top, size: 100.0),
-                blur: false,
+                edge: WallpaperEdgeEffectEdge(edge: .top, size: 80.0),
+                alpha: edgeEffectAlpha,
+                blur: true,
                 containerSize: wallpaperBounds.size,
                 transition: transition
             )
@@ -2524,6 +2561,7 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
         transition.updateFrame(node: self.inputPanelBackgroundNode, frame: apparentInputBackgroundFrame, beginWithCurrentState: true)
         
         if let headerPanelsComponentView = self.headerPanelsView?.view, let headerPanelsSize {
+            sidePanelTopInset += 8.0
             let headerPanelsFrame = CGRect(origin: CGPoint(x: layout.safeInsets.left, y: sidePanelTopInset), size: headerPanelsSize)
             var headerPanelsTransition = ComponentTransition(transition)
             if headerPanelsComponentView.superview == nil {
@@ -4602,12 +4640,13 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
                         }
                     }
                     
-                    // GHOSTGRAM: When send delay is active, scheduled messages
-                    // don't trigger history view update, so clear input immediately.
                     if SendDelayManager.shared.isEnabled {
                         self.collapseInput()
+                        
                         self.ignoreUpdateHeight = true
-                        textInputPanelNode.text = ""
+                        if let textInputPanelNode = self.inputPanelNode as? ChatTextInputPanelNode {
+                            textInputPanelNode.text = ""
+                        }
                         self.requestUpdateChatInterfaceState(.immediate, overrideThreadId == nil, { state in
                             var state = state
                             state = state.withUpdatedReplyMessageSubject(nil)
@@ -4657,7 +4696,7 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
                 }
                 
                 var targetThreadId: Int64?
-                if self.chatLocation.threadId == nil, let user = self.chatPresentationInterfaceState.renderedPeer?.peer as? TelegramUser, user.isForum {
+                if self.chatLocation.threadId == nil, let user = self.chatPresentationInterfaceState.renderedPeer?.peer as? TelegramUser, let botInfo = user.botInfo, botInfo.flags.contains(.hasForum), botInfo.flags.contains(.forumManagedByUser) {
                     if let message = messages.first {
                         switch message {
                         case let .message(_, _, _, _, _, replyToMessageId, _, _, _, _):

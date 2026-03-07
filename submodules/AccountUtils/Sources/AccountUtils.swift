@@ -4,9 +4,11 @@ import TelegramCore
 import TelegramUIPreferences
 import AccountContext
 
-// GHOSTGRAM: Unlimited accounts bypass - always allow up to 10 accounts
-public let maximumNumberOfAccounts = 10
-public let maximumPremiumNumberOfAccounts = 10
+// MARK: Swiftgram compatibility
+public let maximumSwiftgramNumberOfAccounts = 500
+public let maximumSafeNumberOfAccounts = 6
+public let maximumNumberOfAccounts = maximumSwiftgramNumberOfAccounts
+public let maximumPremiumNumberOfAccounts = maximumSwiftgramNumberOfAccounts
 
 public func activeAccountsAndPeers(context: AccountContext, includePrimary: Bool = false) -> Signal<((AccountContext, EnginePeer)?, [(AccountContext, EnginePeer, Int32)]), NoError> {
     let sharedContext = context.sharedContext

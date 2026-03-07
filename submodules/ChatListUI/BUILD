@@ -1,20 +1,24 @@
 load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
 
+sgdeps = [
+    "//Swiftgram/SGSimpleSettings:SGSimpleSettings",
+    "//Swiftgram/SGAPIWebSettings:SGAPIWebSettings",
+    "//Swiftgram/SGAPIToken:SGAPIToken"
+]
+sgsrcs = [
+    "//Swiftgram/SGChatListSimpleSettingsSignal:SGChatListSimpleSettingsSignal",
+]
+
 swift_library(
     name = "ChatListUI",
     module_name = "ChatListUI",
-    srcs = glob(
-        [
-            "Sources/**/*.swift",
-        ],
-        exclude = [
-            "Sources/ChatListFilterTabContainerNode.swift",
-        ],
-    ),
+    srcs = glob([
+        "Sources/**/*.swift",
+    ]) + sgsrcs,
     copts = [
         "-warnings-as-errors",
     ],
-    deps = [
+    deps = sgdeps + [
         "//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",
         "//submodules/AsyncDisplayKit:AsyncDisplayKit",
         "//submodules/Display:Display",
@@ -130,6 +134,10 @@ swift_library(
         "//submodules/TelegramUI/Components/LiveLocationHeaderPanelComponent",
         "//submodules/TelegramUI/Components/ChatList/ChatListSearchFiltersContainerNode",
         "//submodules/TelegramUI/Components/ChatList/ChatListHeaderNoticeComponent",
+        "//submodules/TelegramUI/Components/AlertComponent",
+        "//submodules/TelegramUI/Components/AlertComponent/AlertTransferHeaderComponent",
+        "//submodules/TelegramUI/Components/AvatarComponent",
+        "//submodules/TelegramUI/Components/PeerManagement/OwnershipTransferController",
     ],
     visibility = [
         "//visibility:public",

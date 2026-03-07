@@ -456,6 +456,9 @@ public final class PresentationThemeList {
     public let itemBlocksBackgroundColor: UIColor
     public let itemModalBlocksBackgroundColor: UIColor
     public let itemHighlightedBackgroundColor: UIColor
+    public var itemSearchHighlightColor: UIColor {
+        return self.itemHighlightedBackgroundColor
+    }
     public let itemBlocksSeparatorColor: UIColor
     public let itemPlainSeparatorColor: UIColor
     public let disclosureArrowColor: UIColor

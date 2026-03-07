@@ -124,6 +124,11 @@ class CaptionScrollWrapperNode: ASDisplayNode {
 }
 
 final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScrollViewDelegate {
+    struct SettingsButtonState: Equatable {
+        let speed: String?
+        let quality: String?
+    }
+    
     private let context: AccountContext
     private var presentationData: PresentationData
     private var theme: PresentationTheme
@@ -1145,6 +1150,14 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                 dustNode.removeFromSupernode()
             }
         }
+    }
+    
+    func setMessage(_ message: Message, displayInfo: Bool, translateToLanguage: String? = nil, peerIsCopyProtected: Bool, displayPictureInPictureButton: Bool, settingsButtonState: SettingsButtonState?, displayStickersButton: Bool) {
+        self.setMessage(message, displayInfo: displayInfo, translateToLanguage: translateToLanguage, peerIsCopyProtected: peerIsCopyProtected)
+    }
+    
+    func setMessage(_ message: Message, displayInfo: Bool, translateToLanguage: String? = nil, peerIsCopyProtected: Bool, displayPictureInPictureButton: Bool, settingsButtonState: SettingsButtonState?, displayStickersButton: Bool, animated: Bool) {
+        self.setMessage(message, displayInfo: displayInfo, translateToLanguage: translateToLanguage, peerIsCopyProtected: peerIsCopyProtected, displayPictureInPictureButton: displayPictureInPictureButton, settingsButtonState: settingsButtonState, displayStickersButton: displayStickersButton)
     }
     
     func setWebPage(_ webPage: TelegramMediaWebpage, media: Media) {

@@ -74,6 +74,113 @@ static NSData *base64_decode(NSString *str) {
   }
 }
 
+static NSDictionary<NSNumber *, NSDictionary<NSString *, NSString *> *> *
+MTDeviceSpoofProfiles(void) {
+  static NSDictionary<NSNumber *, NSDictionary<NSString *, NSString *> *>
+      *profiles;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    profiles = @{
+      @1 : @{
+        @"deviceModel" : @"iPhone 14 Pro",
+        @"systemVersion" : @"iOS 17.2"
+      },
+      @2 : @{
+        @"deviceModel" : @"iPhone 15 Pro Max",
+        @"systemVersion" : @"iOS 17.4"
+      },
+      @3 : @{
+        @"deviceModel" : @"Samsung SM-S918B",
+        @"systemVersion" : @"Android 14"
+      },
+      @4 : @{
+        @"deviceModel" : @"Google Pixel 8 Pro",
+        @"systemVersion" : @"Android 14"
+      },
+      @5 : @{
+        @"deviceModel" : @"PC 64bit",
+        @"systemVersion" : @"Windows 11"
+      },
+      @6 : @{
+        @"deviceModel" : @"MacBook Pro",
+        @"systemVersion" : @"macOS 14.3"
+      },
+      @7 : @{
+        @"deviceModel" : @"Web",
+        @"systemVersion" : @"Chrome 121"
+      },
+      @8 : @{
+        @"deviceModel" : @"HUAWEI MNA-LX9",
+        @"systemVersion" : @"HarmonyOS 4.0"
+      },
+      @9 : @{
+        @"deviceModel" : @"Xiaomi 2311DRK48G",
+        @"systemVersion" : @"Android 14"
+      }
+    };
+  });
+  return profiles;
+}
+
+static NSString *MTDeviceSpoofTrimmedString(NSString *value) {
+  if (value == nil) {
+    return @"";
+  }
+  return
+      [value stringByTrimmingCharactersInSet:
+                 [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+}
+
+static NSInteger MTDeviceSpoofSanitizedProfileId(NSUserDefaults *defaults) {
+  NSInteger profileId =
+      [defaults integerForKey:@"DeviceSpoof.selectedProfileId"];
+  if (profileId == 0 || profileId == 100 ||
+      MTDeviceSpoofProfiles()[@(profileId)] != nil) {
+    return profileId;
+  }
+  [defaults setInteger:0 forKey:@"DeviceSpoof.selectedProfileId"];
+  return 0;
+}
+
+static BOOL MTDeviceSpoofIsEnabled(NSUserDefaults *defaults) {
+  return [defaults boolForKey:@"DeviceSpoof.hasExplicitConfiguration"] &&
+         [defaults boolForKey:@"DeviceSpoof.isEnabled"];
+}
+
+static void MTDeviceSpoofResolveValues(NSUserDefaults *defaults,
+                                       NSString *__autoreleasing *deviceModel,
+                                       NSString *__autoreleasing *systemVersion) {
+  *deviceModel = nil;
+  *systemVersion = nil;
+
+  if (!MTDeviceSpoofIsEnabled(defaults)) {
+    return;
+  }
+
+  NSInteger profileId = MTDeviceSpoofSanitizedProfileId(defaults);
+  if (profileId == 0) {
+    return;
+  }
+
+  if (profileId == 100) {
+    NSString *customDeviceModel =
+        MTDeviceSpoofTrimmedString([defaults stringForKey:@"DeviceSpoof.customDeviceModel"]);
+    NSString *customSystemVersion =
+        MTDeviceSpoofTrimmedString([defaults stringForKey:@"DeviceSpoof.customSystemVersion"]);
+    if (customDeviceModel.length == 0 || customSystemVersion.length == 0) {
+      return;
+    }
+    *deviceModel = customDeviceModel;
+    *systemVersion = customSystemVersion;
+    return;
+  }
+
+  NSDictionary<NSString *, NSString *> *profile =
+      MTDeviceSpoofProfiles()[@(profileId)];
+  *deviceModel = profile[@"deviceModel"];
+  *systemVersion = profile[@"systemVersion"];
+}
+
 @implementation MTProxySecret
 
 - (instancetype _Nullable)initWithSecret:(NSData *_Nonnull)secret {
@@ -409,49 +516,10 @@ static NSData *base64_decode(NSString *str) {
 - (id _Nonnull)initWithDeviceModelName:(NSString *_Nullable)deviceModelName {
   self = [super init];
   if (self != nil) {
-    // GHOSTGRAM: Check for device spoofing from UserDefaults
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    BOOL spoofEnabled = [defaults boolForKey:@"DeviceSpoof.isEnabled"];
-    NSInteger profileId =
-        [defaults integerForKey:@"DeviceSpoof.selectedProfileId"];
-
     NSString *spoofedModel = nil;
     NSString *spoofedVersion = nil;
-
-    if (spoofEnabled && profileId != 0) {
-      if (profileId == 100) {
-        // Custom profile
-        spoofedModel = [defaults stringForKey:@"DeviceSpoof.customDeviceModel"];
-        spoofedVersion =
-            [defaults stringForKey:@"DeviceSpoof.customSystemVersion"];
-      } else {
-        // Preset profiles
-        NSDictionary *models = @{
-          @1 : @"iPhone 14 Pro",
-          @2 : @"iPhone 15 Pro Max",
-          @3 : @"Samsung SM-S918B",
-          @4 : @"Google Pixel 8 Pro",
-          @5 : @"PC 64bit",
-          @6 : @"MacBook Pro",
-          @7 : @"Web",
-          @8 : @"HUAWEI MNA-LX9",
-          @9 : @"Xiaomi 2311DRK48G"
-        };
-        NSDictionary *versions = @{
-          @1 : @"iOS 17.2",
-          @2 : @"iOS 17.4",
-          @3 : @"Android 14",
-          @4 : @"Android 14",
-          @5 : @"Windows 11",
-          @6 : @"macOS 14.3",
-          @7 : @"Chrome 121",
-          @8 : @"HarmonyOS 4.0",
-          @9 : @"Android 14"
-        };
-        spoofedModel = models[@(profileId)];
-        spoofedVersion = versions[@(profileId)];
-      }
-    }
+    MTDeviceSpoofResolveValues(defaults, &spoofedModel, &spoofedVersion);
 
     if (spoofedModel.length > 0) {
       _deviceModel = spoofedModel;

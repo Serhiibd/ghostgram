@@ -1,3 +1,5 @@
+import SGSimpleSettings
+import TranslateUI
 import Foundation
 import UIKit
 import Postbox
@@ -327,14 +329,14 @@ public final class ChatMessageItemImpl: ChatMessageItem, CustomStringConvertible
                 }
                 displayAuthorInfo = incoming && peerId.isGroupOrChannel && effectiveAuthor != nil
                 
-                if let channel = content.firstMessage.peers[content.firstMessage.id.peerId] as? TelegramChannel, channel.isForumOrMonoForum {
+                if let chatPeer = content.firstMessage.peers[content.firstMessage.id.peerId], chatPeer.isForumOrMonoForum {
                     if case .replyThread = chatLocation {
-                        if channel.isMonoForum && chatLocation.threadId != context.account.peerId.toInt64() {
+                        if chatPeer.isMonoForum && chatLocation.threadId != context.account.peerId.toInt64() {
                             displayAuthorInfo = false
                         }
                     } else {
-                        if channel.isMonoForum {
-                            if let linkedMonoforumId = channel.linkedMonoforumId, let mainChannel = content.firstMessage.peers[linkedMonoforumId] as? TelegramChannel, mainChannel.hasPermission(.manageDirect) {
+                        if chatPeer.isMonoForum {
+                            if let chatPeer = chatPeer as? TelegramChannel, let linkedMonoforumId = chatPeer.linkedMonoforumId, let mainChannel = content.firstMessage.peers[linkedMonoforumId] as? TelegramChannel, mainChannel.hasPermission(.manageDirect) {
                                 headerSeparableThreadId = content.firstMessage.threadId
                                 
                                 if let threadId = content.firstMessage.threadId, let peer = content.firstMessage.peers[EnginePeer.Id(threadId)] {
@@ -533,6 +535,17 @@ public final class ChatMessageItemImpl: ChatMessageItem, CustomStringConvertible
         
         let configure = {
             let node = (viewClassName as! ChatMessageItemView.Type).init(rotated: self.controllerInteraction.chatIsRotated)
+            if let node = node as? ChatMessageStickerItemNode {
+                node.sizeCoefficient = Float(SGSimpleSettings.shared.stickerSize) / 100.0
+                if !SGSimpleSettings.shared.stickerTimestamp {
+                    node.dateAndStatusNode.isHidden = true
+                }
+            } else if let node = node as? ChatMessageAnimatedStickerItemNode {
+                node.sizeCoefficient = Float(SGSimpleSettings.shared.stickerSize) / 100.0
+                if !SGSimpleSettings.shared.stickerTimestamp {
+                    node.dateAndStatusNode.isHidden = true
+                }
+            }
             node.setupItem(self, synchronousLoad: synchronousLoads)
             
             let nodeLayout = node.asyncLayout()

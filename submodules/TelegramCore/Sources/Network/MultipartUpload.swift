@@ -1,3 +1,4 @@
+import SGSimpleSettings
 import Foundation
 import Postbox
 import TelegramApi
@@ -479,7 +480,8 @@ func multipartUpload(network: Network, postbox: Postbox, source: MultipartUpload
                 }
             }
             
-            let manager = MultipartUploadManager(headerSize: headerSize, data: dataSignal, encryptionKey: encryptionKey, hintFileSize: hintFileSize, hintFileIsLarge: hintFileIsLarge, forceNoBigParts: forceNoBigParts, useLargerParts: useLargerParts, increaseParallelParts: increaseParallelParts, uploadPart: { part in
+            // TODO(swiftgram): Change other variables for uploadSpeedBoost
+            let manager = MultipartUploadManager(headerSize: headerSize, data: dataSignal, encryptionKey: encryptionKey, hintFileSize: hintFileSize, hintFileIsLarge: hintFileIsLarge, forceNoBigParts: forceNoBigParts, useLargerParts: useLargerParts || SGSimpleSettings.shared.uploadSpeedBoost, increaseParallelParts: increaseParallelParts || SGSimpleSettings.shared.uploadSpeedBoost, uploadPart: { part in
                 switch uploadInterface {
                 case let .download(download):
                     return download.uploadPart(fileId: part.fileId, index: part.index, data: part.data, asBigPart: part.bigPart, bigTotalParts: part.bigTotalParts, useCompression: useCompression, onFloodWaitError: onFloodWaitError)
@@ -505,18 +507,18 @@ func multipartUpload(network: Network, postbox: Postbox, source: MultipartUpload
                             })
                         }
                         if let _ = result.bigTotalParts {
-                            let inputFile = Api.InputEncryptedFile.inputEncryptedFileBigUploaded(id: result.id, parts: result.partCount, keyFingerprint: fingerprint)
+                            let inputFile = Api.InputEncryptedFile.inputEncryptedFileBigUploaded(.init(id: result.id, parts: result.partCount, keyFingerprint: fingerprint))
                             subscriber.putNext(.inputSecretFile(inputFile, result.size, encryptionKey))
                         } else {
-                            let inputFile = Api.InputEncryptedFile.inputEncryptedFileUploaded(id: result.id, parts: result.partCount, md5Checksum: result.md5Digest, keyFingerprint: fingerprint)
+                            let inputFile = Api.InputEncryptedFile.inputEncryptedFileUploaded(.init(id: result.id, parts: result.partCount, md5Checksum: result.md5Digest, keyFingerprint: fingerprint))
                             subscriber.putNext(.inputSecretFile(inputFile, result.size, encryptionKey))
                         }
                     } else {
                         if let _ = result.bigTotalParts {
-                            let inputFile = Api.InputFile.inputFileBig(id: result.id, parts: result.partCount, name: "file.jpg")
+                            let inputFile = Api.InputFile.inputFileBig(.init(id: result.id, parts: result.partCount, name: "file.jpg"))
                             subscriber.putNext(.inputFile(inputFile))
                         } else {
-                            let inputFile = Api.InputFile.inputFile(id: result.id, parts: result.partCount, name: "file.jpg", md5Checksum: result.md5Digest)
+                            let inputFile = Api.InputFile.inputFile(.init(id: result.id, parts: result.partCount, name: "file.jpg", md5Checksum: result.md5Digest))
                             subscriber.putNext(.inputFile(inputFile))
                         }
                     }

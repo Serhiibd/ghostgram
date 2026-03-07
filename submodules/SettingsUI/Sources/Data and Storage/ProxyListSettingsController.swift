@@ -1,3 +1,7 @@
+// MARK: Swiftgram
+import SGSimpleSettings
+import SGStrings
+
 import Foundation
 import UIKit
 import Display
@@ -13,6 +17,7 @@ import UrlEscaping
 import ShareController
 
 private final class ProxySettingsControllerArguments {
+    let toggleLocalDNS: (Bool) -> Void
     let toggleEnabled: (Bool) -> Void
     let addNewServer: () -> Void
     let activateServer: (ProxyServerSettings) -> Void
@@ -22,7 +27,8 @@ private final class ProxySettingsControllerArguments {
     let toggleUseForCalls: (Bool) -> Void
     let shareProxyList: () -> Void
     
-    init(toggleEnabled: @escaping (Bool) -> Void, addNewServer: @escaping () -> Void, activateServer: @escaping (ProxyServerSettings) -> Void, editServer: @escaping (ProxyServerSettings) -> Void, removeServer: @escaping (ProxyServerSettings) -> Void, setServerWithRevealedOptions: @escaping (ProxyServerSettings?, ProxyServerSettings?) -> Void, toggleUseForCalls: @escaping (Bool) -> Void, shareProxyList: @escaping () -> Void) {
+    init(toggleLocalDNS: @escaping (Bool) -> Void, toggleEnabled: @escaping (Bool) -> Void, addNewServer: @escaping () -> Void, activateServer: @escaping (ProxyServerSettings) -> Void, editServer: @escaping (ProxyServerSettings) -> Void, removeServer: @escaping (ProxyServerSettings) -> Void, setServerWithRevealedOptions: @escaping (ProxyServerSettings?, ProxyServerSettings?) -> Void, toggleUseForCalls: @escaping (Bool) -> Void, shareProxyList: @escaping () -> Void) {
+        self.toggleLocalDNS = toggleLocalDNS
         self.toggleEnabled = toggleEnabled
         self.addNewServer = addNewServer
         self.activateServer = activateServer
@@ -58,8 +64,25 @@ private enum ProxySettingsControllerEntryId: Equatable, Hashable {
     case server(String, Int32, ProxyServerConnection)
 }
 
+public enum ProxySettingsEntryTag: ItemListItemTag, Equatable {
+    case edit
+    case useProxy
+    case shareList
+    case useForCalls
+    
+    public func isEqual(to other: ItemListItemTag) -> Bool {
+        if let other = other as? ProxySettingsEntryTag, self == other {
+            return true
+        } else {
+            return false
+        }
+    }
+}
+
 private enum ProxySettingsControllerEntry: ItemListNodeEntry {
     case enabled(PresentationTheme, String, Bool, Bool)
+    case localDNSToggle(PresentationTheme, String, Bool)
+    case localDNSNotice(PresentationTheme, String)
     case serversHeader(PresentationTheme, String)
     case addServer(PresentationTheme, String, Bool)
     case server(Int, PresentationTheme, PresentationStrings, ProxyServerSettings, Bool, DisplayProxyServerStatus, ProxySettingsServerItemEditing, Bool)
@@ -69,6 +92,8 @@ private enum ProxySettingsControllerEntry: ItemListNodeEntry {
     
     var section: ItemListSectionId {
         switch self {
+            case .localDNSToggle, .localDNSNotice:
+                return ProxySettingsControllerSection.enabled.rawValue
             case .enabled:
                 return ProxySettingsControllerSection.enabled.rawValue
             case .serversHeader, .addServer, .server:
@@ -83,6 +108,10 @@ private enum ProxySettingsControllerEntry: ItemListNodeEntry {
     var stableId: ProxySettingsControllerEntryId {
         switch self {
             case .enabled:
+                return .index(-2)
+            case .localDNSToggle:
+                return .index(-1)
+            case .localDNSNotice:
                 return .index(0)
             case .serversHeader:
                 return .index(1)
@@ -103,6 +132,18 @@ private enum ProxySettingsControllerEntry: ItemListNodeEntry {
         switch lhs {
             case let .enabled(lhsTheme, lhsText, lhsValue, lhsCreatesNew):
                 if case let .enabled(rhsTheme, rhsText, rhsValue, rhsCreatesNew) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue, lhsCreatesNew == rhsCreatesNew {
+                    return true
+                } else {
+                    return false
+                }
+            case let .localDNSToggle(lhsTheme, lhsText, lhsValue):
+                if case let .localDNSToggle(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
+                    return true
+                } else {
+                    return false
+                }
+            case let .localDNSNotice(lhsTheme, lhsText):
+                if case let .localDNSNotice(rhsTheme, rhsText) = rhs, lhsTheme === rhsTheme, lhsText == rhsText {
                     return true
                 } else {
                     return false
@@ -155,23 +196,37 @@ private enum ProxySettingsControllerEntry: ItemListNodeEntry {
                     default:
                         return true
                 }
+            case .localDNSToggle:
+                switch rhs {
+                    case .enabled, .localDNSToggle:
+                        return false
+                    default:
+                        return true
+                }
+            case .localDNSNotice:
+                switch rhs {
+                    case .enabled, .localDNSToggle, .localDNSNotice:
+                        return false
+                    default:
+                        return true
+                }
             case .serversHeader:
                 switch rhs {
-                    case .enabled, .serversHeader:
+                    case .enabled, .localDNSToggle, .localDNSNotice, .serversHeader:
                         return false
                     default:
                         return true
                 }
             case .addServer:
                 switch rhs {
-                    case .enabled, .serversHeader, .addServer:
+                    case .enabled, .localDNSToggle, .localDNSNotice, .serversHeader, .addServer:
                         return false
                     default:
                         return true
                 }
             case let .server(lhsIndex, _, _, _, _, _, _, _):
                 switch rhs {
-                    case .enabled, .serversHeader, .addServer:
+                    case .enabled, .localDNSToggle, .localDNSNotice, .serversHeader, .addServer:
                         return false
                     case let .server(rhsIndex, _, _, _, _, _, _, _):
                         return lhsIndex < rhsIndex
@@ -180,14 +235,14 @@ private enum ProxySettingsControllerEntry: ItemListNodeEntry {
                 }
             case .shareProxyList:
                 switch rhs {
-                    case .enabled, .serversHeader, .addServer, .server, .shareProxyList:
+                    case .enabled, .localDNSToggle, .localDNSNotice, .serversHeader, .addServer, .server, .shareProxyList:
                         return false
                     default:
                         return true
             }
             case .useForCalls:
                 switch rhs {
-                    case .enabled, .serversHeader, .addServer, .server, .shareProxyList, .useForCalls:
+                    case .enabled, .localDNSToggle, .localDNSNotice, .serversHeader, .addServer, .server, .shareProxyList, .useForCalls:
                         return false
                     default:
                         return true
@@ -207,7 +262,13 @@ private enum ProxySettingsControllerEntry: ItemListNodeEntry {
                     } else {
                         arguments.toggleEnabled(value)
                     }
+                }, tag: ProxySettingsEntryTag.useProxy)
+            case let .localDNSToggle(_, text, value):
+                return ItemListSwitchItem(presentationData: presentationData, title: text, value: value, enabled: true, sectionId: self.section, style: .blocks, updated: { value in
+                    arguments.toggleLocalDNS(value)
                 })
+            case let .localDNSNotice(_, text):
+                return ItemListTextItem(presentationData: presentationData, text: .markdown(text), sectionId: self.section)
             case let .serversHeader(_, text):
                 return ItemListSectionHeaderItem(presentationData: presentationData, text: text, sectionId: self.section)
             case let .addServer(_, text, _):
@@ -225,13 +286,13 @@ private enum ProxySettingsControllerEntry: ItemListNodeEntry {
                     arguments.removeServer(settings)
                 })
             case let .shareProxyList(_, text):
-                return ProxySettingsActionItem(presentationData: presentationData, systemStyle: .glass, title: text, sectionId: self.section, editing: false, action: {
+                return ProxySettingsActionItem(presentationData: presentationData, systemStyle: .glass, title: text, sectionId: self.section, editing: false, tag: ProxySettingsEntryTag.shareList, action: {
                     arguments.shareProxyList()
                 })
             case let .useForCalls(_, text, value):
                 return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: text, value: value, enableInteractiveChanges: true, enabled: true, sectionId: self.section, style: .blocks, updated: { value in
                     arguments.toggleUseForCalls(value)
-                })
+                }, tag: ProxySettingsEntryTag.useForCalls)
             case let .useForCallsInfo(_, text):
                 return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
         }
@@ -242,6 +303,9 @@ private func proxySettingsControllerEntries(theme: PresentationTheme, strings: P
     var entries: [ProxySettingsControllerEntry] = []
 
     entries.append(.enabled(theme, strings.ChatSettings_ConnectionType_UseProxy, proxySettings.enabled, proxySettings.servers.isEmpty))
+    // MARK: Swiftgram
+    entries.append(.localDNSToggle(theme, i18n("ProxySettings.UseSystemDNS", strings.baseLanguageCode), SGSimpleSettings.shared.localDNSForProxyHost))
+    entries.append(.localDNSNotice(theme, i18n("ProxySettings.UseSystemDNS.Notice", strings.baseLanguageCode)))
     entries.append(.serversHeader(theme, strings.SocksProxySetup_SavedProxies))
     entries.append(.addServer(theme, strings.SocksProxySetup_AddProxy, state.editing))
     var index = 0
@@ -308,13 +372,14 @@ public enum ProxySettingsControllerMode {
     case modal
 }
 
-public func proxySettingsController(context: AccountContext, mode: ProxySettingsControllerMode = .default) -> ViewController {
+public func proxySettingsController(context: AccountContext, mode: ProxySettingsControllerMode = .default, focusOnItemTag: ProxySettingsEntryTag? = nil) -> ViewController {
     let presentationData = context.sharedContext.currentPresentationData.with { $0 }
-    return proxySettingsController(accountManager: context.sharedContext.accountManager, sharedContext: context.sharedContext, context: context, postbox: context.account.postbox, network: context.account.network, mode: mode, presentationData: presentationData, updatedPresentationData: context.sharedContext.presentationData)
+    return proxySettingsController(accountManager: context.sharedContext.accountManager, sharedContext: context.sharedContext, context: context, postbox: context.account.postbox, network: context.account.network, mode: mode, presentationData: presentationData, updatedPresentationData: context.sharedContext.presentationData, focusOnItemTag: focusOnItemTag)
 }
 
-public func proxySettingsController(accountManager: AccountManager<TelegramAccountManagerTypes>, sharedContext: SharedAccountContext, context: AccountContext? = nil, postbox: Postbox, network: Network, mode: ProxySettingsControllerMode, presentationData: PresentationData, updatedPresentationData: Signal<PresentationData, NoError>) -> ViewController {
+public func proxySettingsController(accountManager: AccountManager<TelegramAccountManagerTypes>, sharedContext: SharedAccountContext, context: AccountContext? = nil, postbox: Postbox, network: Network, mode: ProxySettingsControllerMode, presentationData: PresentationData, updatedPresentationData: Signal<PresentationData, NoError>, focusOnItemTag: ProxySettingsEntryTag? = nil) -> ViewController {
     var pushControllerImpl: ((ViewController) -> Void)?
+    var presentControllerImpl: ((ViewController, ViewControllerPresentationArguments?) -> Void)?
     var dismissImpl: (() -> Void)?
     let stateValue = Atomic(value: ProxySettingsControllerState())
     let statePromise = ValuePromise<ProxySettingsControllerState>(stateValue.with { $0 })
@@ -332,9 +397,35 @@ public func proxySettingsController(accountManager: AccountManager<TelegramAccou
         }
     }
     
+    if focusOnItemTag == ProxySettingsEntryTag.edit {
+        updateState { state in
+            var state = state
+            state.editing = true
+            return state
+        }
+    }
+    
     var shareProxyListImpl: (() -> Void)?
     
-    let arguments = ProxySettingsControllerArguments(toggleEnabled: { value in
+    let arguments = ProxySettingsControllerArguments(toggleLocalDNS: { value in
+        SGSimpleSettings.shared.localDNSForProxyHost = value
+        guard let context = context else {
+            return
+        }
+        let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+        let actionSheet = ActionSheetController(presentationData: presentationData)
+        actionSheet.setItemGroups([ActionSheetItemGroup(items: [
+            ActionSheetTextItem(title: i18n("Common.RestartRequired", presentationData.strings.baseLanguageCode)),
+            ActionSheetButtonItem(title: i18n("Common.RestartNow", presentationData.strings.baseLanguageCode), color: .destructive, font: .default, action: {
+                exit(0)
+            })
+        ]), ActionSheetItemGroup(items: [
+            ActionSheetButtonItem(title: presentationData.strings.Common_Cancel, color: .accent, font: .bold, action: { [weak actionSheet] in
+                actionSheet?.dismissAnimated()
+            })
+        ])])
+        presentControllerImpl?(actionSheet, ViewControllerPresentationArguments(presentationAnimation: .modalSheet))
+    }, toggleEnabled: { value in
         let _ = updateProxySettingsInteractively(accountManager: accountManager, { current in
             var current = current
             current.enabled = value
@@ -431,7 +522,7 @@ public func proxySettingsController(accountManager: AccountManager<TelegramAccou
         }
         
         let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text(presentationData.strings.SocksProxySetup_Title), leftNavigationButton: leftNavigationButton, rightNavigationButton: rightNavigationButton, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back))
-        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: proxySettingsControllerEntries(theme: presentationData.theme, strings: presentationData.strings, state: state, proxySettings: proxySettings, statuses: statuses, connectionStatus: connectionStatus), style: .blocks)
+        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: proxySettingsControllerEntries(theme: presentationData.theme, strings: presentationData.strings, state: state, proxySettings: proxySettings, statuses: statuses, connectionStatus: connectionStatus), style: .blocks, ensureVisibleItemTag: focusOnItemTag)
         
         return (controllerState, (listState, arguments))
     }
@@ -528,6 +619,24 @@ public func proxySettingsController(accountManager: AccountManager<TelegramAccou
                 
                 presentExternalShare(context: context, text: result, parentController: strongController)
             })
+    }
+    
+    if let focusOnItemTag {
+        var didFocusOnItem = false
+        controller.afterTransactionCompleted = { [weak controller] in
+            if !didFocusOnItem, let controller {
+                controller.forEachItemNode { itemNode in
+                    if let itemNode = itemNode as? ItemListItemNode, let tag = itemNode.tag, tag.isEqual(to: focusOnItemTag) {
+                        didFocusOnItem = true
+                        itemNode.displayHighlight()
+                    }
+                }
+            }
+        }
+    }
+    // MARK: Swiftgram
+    presentControllerImpl = { [weak controller] c, a in
+        controller?.present(c, in: .window(.root), with: a)
     }
     
     return controller

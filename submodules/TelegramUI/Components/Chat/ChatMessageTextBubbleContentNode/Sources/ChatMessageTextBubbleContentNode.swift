@@ -725,6 +725,7 @@ public class ChatMessageTextBubbleContentNode: ChatMessageBubbleContentNode {
                         context: item.context,
                         presentationData: item.presentationData,
                         edited: edited && !item.presentationData.isPreview,
+                        isDeleted: item.topMessage.ghostgramIsDeleted,
                         impressionCount: !item.presentationData.isPreview ? viewCount : nil,
                         dateText: dateText,
                         type: statusType,
@@ -742,7 +743,6 @@ public class ChatMessageTextBubbleContentNode: ChatMessageBubbleContentNode {
                         starsCount: starsCount,
                         isPinned: item.message.tags.contains(.pinned) && (!item.associatedData.isInPinnedListMode || isReplyThread),
                         hasAutoremove: item.message.isSelfExpiring,
-                        isDeleted: AntiDeleteManager.shared.isMessageDeleted(peerId: item.message.id.peerId.toInt64(), messageId: item.message.id.id) || AntiDeleteManager.shared.isMessageDeleted(text: item.message.text),
                         canViewReactionList: canViewMessageReactionList(message: item.topMessage),
                         animationCache: item.controllerInteraction.presentationContext.animationCache,
                         animationRenderer: item.controllerInteraction.presentationContext.animationRenderer
@@ -1256,7 +1256,7 @@ public class ChatMessageTextBubbleContentNode: ChatMessageBubbleContentNode {
         return super.hitTest(point, with: event)
     }
     
-    private func updateIsTranslating(_ isTranslating: Bool) {
+    public func updateIsTranslating(_ isTranslating: Bool) {
         guard let item = self.item else {
             return
         }

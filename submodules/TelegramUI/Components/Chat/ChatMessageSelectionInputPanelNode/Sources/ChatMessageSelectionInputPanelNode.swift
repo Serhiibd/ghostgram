@@ -321,7 +321,7 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
         if let actions = self.actions, actions.isCopyProtected {
             self.interfaceInteraction?.displayCopyProtectionTip(self.forwardButton, false)
         } else if !self.forwardButton.isImplicitlyDisabled {
-            self.interfaceInteraction?.forwardSelectedMessages()
+            self.interfaceInteraction?.forwardSelectedMessages(nil)
         }
     }
     

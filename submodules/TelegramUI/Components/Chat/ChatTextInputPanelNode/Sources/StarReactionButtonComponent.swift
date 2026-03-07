@@ -7,6 +7,14 @@ import GlassBackgroundComponent
 import AnimatedTextComponent
 import StarsParticleEffect
 
+private func neutralStarReactionGlassTint(theme: PresentationTheme) -> GlassBackgroundView.TintColor {
+    if theme.overallDarkAppearance {
+        return .init(kind: .custom, color: UIColor(white: 0.0, alpha: 0.38))
+    } else {
+        return .init(kind: .custom, color: UIColor(white: 1.0, alpha: 0.68))
+    }
+}
+
 final class StarReactionButtonBadgeComponent: Component {
     let theme: PresentationTheme
     let count: Int
@@ -80,7 +88,7 @@ final class StarReactionButtonBadgeComponent: Component {
             if component.isFilled {
                 backgroundTintColor = .init(kind: .custom, color: UIColor(rgb: 0xFFB10D))
             } else {
-                backgroundTintColor = .init(kind: .panel, color: component.theme.chat.inputPanel.inputBackgroundColor.withMultipliedAlpha(0.7))
+                backgroundTintColor = neutralStarReactionGlassTint(theme: component.theme)
             }
             
             self.backgroundView.update(size: backgroundFrame.size, cornerRadius: backgroundFrame.height * 0.5, isDark: component.theme.overallDarkAppearance, tintColor: backgroundTintColor, isInteractive: true, transition: transition)
@@ -338,7 +346,7 @@ final class StarReactionButtonComponent: Component {
             if component.isFilled {
                 backgroundTintColor = .init(kind: .custom, color: UIColor(rgb: 0xFFB10D))
             } else {
-                backgroundTintColor = .init(kind: .panel, color: component.theme.chat.inputPanel.inputBackgroundColor.withMultipliedAlpha(0.7))
+                backgroundTintColor = neutralStarReactionGlassTint(theme: component.theme)
             }
             
             self.backgroundView.update(size: backgroundFrame.size, cornerRadius: backgroundFrame.height * 0.5, isDark: component.theme.overallDarkAppearance, tintColor: backgroundTintColor, isInteractive: false, transition: transition)

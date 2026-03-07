@@ -55,6 +55,7 @@ public final class ChatMessageItemAssociatedData: Equatable {
     public let accountPeer: EnginePeer?
     public let topicAuthorId: EnginePeer.Id?
     public let hasBots: Bool
+    public let translationSettings: TranslationSettings?
     public let translateToLanguage: String?
     public let maxReadStoryId: Int32?
     public let recommendedChannels: RecommendedChannels?
@@ -91,6 +92,7 @@ public final class ChatMessageItemAssociatedData: Equatable {
         alwaysDisplayTranscribeButton: DisplayTranscribeButton = DisplayTranscribeButton(canBeDisplayed: false, displayForNotConsumed: false, providedByGroupBoost: false),
         topicAuthorId: EnginePeer.Id? = nil,
         hasBots: Bool = false,
+        translationSettings: TranslationSettings? = nil,
         translateToLanguage: String? = nil,
         maxReadStoryId: Int32? = nil,
         recommendedChannels: RecommendedChannels? = nil,
@@ -126,6 +128,7 @@ public final class ChatMessageItemAssociatedData: Equatable {
         self.topicAuthorId = topicAuthorId
         self.alwaysDisplayTranscribeButton = alwaysDisplayTranscribeButton
         self.hasBots = hasBots
+        self.translationSettings = translationSettings
         self.translateToLanguage = translateToLanguage
         self.maxReadStoryId = maxReadStoryId
         self.recommendedChannels = recommendedChannels
@@ -202,6 +205,9 @@ public final class ChatMessageItemAssociatedData: Equatable {
         if lhs.hasBots != rhs.hasBots {
             return false
         }
+        if lhs.translationSettings != rhs.translationSettings {
+            return false
+        }
         if lhs.translateToLanguage != rhs.translateToLanguage {
             return false
         }
@@ -237,6 +243,10 @@ public final class ChatMessageItemAssociatedData: Equatable {
 }
 
 public extension ChatMessageItemAssociatedData {
+    var translateToLanguageSG: String? {
+        return self.translateToLanguage
+    }
+    
     var isInPinnedListMode: Bool {
         if case .pinnedMessages = self.subject {
             return true
@@ -976,7 +986,9 @@ public enum PeerInfoAvatarUploadStatus {
 public protocol PeerInfoScreen: ViewController {
     var peerId: PeerId { get }
     var privacySettings: Promise<AccountPrivacySettings?> { get }
+    var twoStepAuthData: Promise<TwoStepAuthData?> { get }
     
+    func activateEdit()
     func openBirthdaySetup()
     func toggleStorySelection(ids: [Int32], isSelected: Bool)
     func togglePaneIsReordering(isReordering: Bool)
@@ -1091,6 +1103,12 @@ public protocol ChatController: ViewController {
     func removeAd(opaqueId: Data)
     
     func restrictedSendingContentsText() -> String
+}
+
+public extension ChatController {
+    var overlayTitle: String? {
+        return self.title
+    }
 }
 
 public protocol ChatMessagePreviewItemNode: AnyObject {

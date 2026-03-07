@@ -262,6 +262,12 @@ public class GlassBackgroundView: UIView {
             self.color = color
             self.innerColor = innerColor
         }
+        
+        public init(kind: Kind, innerColor: UIColor? = nil) {
+            self.kind = kind
+            self.color = .clear
+            self.innerColor = innerColor
+        }
     }
     
     public enum Shape: Equatable {

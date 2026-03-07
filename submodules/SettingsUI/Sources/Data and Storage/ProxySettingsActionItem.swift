@@ -19,15 +19,17 @@ final class ProxySettingsActionItem: ListViewItem, ItemListItem {
     let icon: ProxySettingsActionIcon
     let editing: Bool
     let sectionId: ItemListSectionId
+    let tag: ItemListItemTag?
     let action: () -> Void
     
-    init(presentationData: ItemListPresentationData, systemStyle: ItemListSystemStyle = .legacy, title: String, icon: ProxySettingsActionIcon = .none, sectionId: ItemListSectionId, editing: Bool, action: @escaping () -> Void) {
+    init(presentationData: ItemListPresentationData, systemStyle: ItemListSystemStyle = .legacy, title: String, icon: ProxySettingsActionIcon = .none, sectionId: ItemListSectionId, editing: Bool, tag: ItemListItemTag? = nil, action: @escaping () -> Void) {
         self.presentationData = presentationData
         self.systemStyle = systemStyle
         self.title = title
         self.icon = icon
         self.editing = editing
         self.sectionId = sectionId
+        self.tag = tag
         self.action = action
     }
     
@@ -77,7 +79,7 @@ final class ProxySettingsActionItem: ListViewItem, ItemListItem {
     }
 }
 
-private final class ProxySettingsActionItemNode: ListViewItemNode {
+private final class ProxySettingsActionItemNode: ListViewItemNode, ItemListItemNode {
     private let backgroundNode: ASDisplayNode
     private let topStripeNode: ASDisplayNode
     private let bottomStripeNode: ASDisplayNode
@@ -88,6 +90,10 @@ private final class ProxySettingsActionItemNode: ListViewItemNode {
     private let titleNode: TextNode
     
     private var item: ProxySettingsActionItem?
+    
+    var tag: ItemListItemTag? {
+        return self.item?.tag
+    }
     
     init() {
         self.backgroundNode = ASDisplayNode()

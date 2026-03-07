@@ -1,3 +1,4 @@
+import SGLogging
 import Foundation
 import Postbox
 import SwiftSignalKit
@@ -52,7 +53,7 @@ public struct RequestChatContextResultsResult {
     }
 }
 
-func _internal_requestChatContextResults(account: Account, botId: PeerId, peerId: PeerId, query: String, location: Signal<(Double, Double)?, NoError> = .single(nil), offset: String, incompleteResults: Bool = false, staleCachedResults: Bool = false) -> Signal<RequestChatContextResultsResult?, RequestChatContextResultsError> {
+func _internal_requestChatContextResults(IQTP: Bool = false, account: Account, botId: PeerId, peerId: PeerId, query: String, location: Signal<(Double, Double)?, NoError> = .single(nil), offset: String, incompleteResults: Bool = false, staleCachedResults: Bool = false) -> Signal<RequestChatContextResultsResult?, RequestChatContextResultsError> {
     return account.postbox.transaction { transaction -> (bot: Peer, peer: Peer)? in
         if let bot = transaction.getPeer(botId), let peer = transaction.getPeer(peerId) {
             return (bot, peer)
@@ -119,7 +120,7 @@ func _internal_requestChatContextResults(account: Account, botId: PeerId, peerId
             if let (latitude, longitude) = location {
                 flags |= (1 << 0)
                 let geoPointFlags: Int32 = 0
-                geoPoint = Api.InputGeoPoint.inputGeoPoint(flags: geoPointFlags, lat: latitude, long: longitude, accuracyRadius: nil)
+                geoPoint = Api.InputGeoPoint.inputGeoPoint(.init(flags: geoPointFlags, lat: latitude, long: longitude, accuracyRadius: nil))
             }
             
             var signal: Signal<RequestChatContextResultsResult?, RequestChatContextResultsError> = account.network.request(Api.functions.messages.getInlineBotResults(flags: flags, bot: inputBot, peer: inputPeer, geoPoint: geoPoint, query: query, offset: offset))
@@ -127,6 +128,10 @@ func _internal_requestChatContextResults(account: Account, botId: PeerId, peerId
                 return ChatContextResultCollection(apiResults: result, botId: bot.id, peerId: peerId, query: query, geoPoint: location)
             }
             |> mapError { error -> RequestChatContextResultsError in
+                // MARK: Swiftgram
+                if IQTP {
+                    SGLogger.shared.log("SGIQTP", "Error requesting inline results: \(error.errorDescription ?? "nil")")
+                }
                 if error.errorDescription == "BOT_INLINE_GEO_REQUIRED" {
                     return .locationRequired
                 } else {

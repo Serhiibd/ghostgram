@@ -31,6 +31,16 @@ private func renderIcon(name: String, scaleFactor: CGFloat = 1.0, backgroundColo
         let bounds = CGRect(origin: CGPoint(), size: size)
         context.clear(bounds)
         
+        func drawImage(_ image: UIImage, in rect: CGRect) {
+            context.saveGState()
+            context.translateBy(x: 0, y: size.height)
+            context.scaleBy(x: 1.0, y: -1.0)
+            UIGraphicsPushContext(context)
+            image.draw(in: rect)
+            UIGraphicsPopContext()
+            context.restoreGState()
+        }
+        
         if let backgroundColors {
             addRoundedRectPath(context: context, rect: CGRect(origin: CGPoint(), size: size), radius: 7.0)
             context.clip()
@@ -44,25 +54,27 @@ private func renderIcon(name: String, scaleFactor: CGFloat = 1.0, backgroundColo
             context.drawLinearGradient(gradient, start: CGPoint(x: size.width, y: size.height), end: CGPoint(x: 0.0, y: 0.0), options: CGGradientDrawingOptions())
             
             context.resetClip()
-            if let image = generateTintedImage(image: UIImage(bundleImageName: name), color: .white), let cgImage = image.cgImage {
+            if let image = generateTintedImage(image: UIImage(bundleImageName: name), color: .white) {
                 let imageSize = CGSize(width: image.size.width * scaleFactor, height: image.size.height * scaleFactor)
-                context.draw(cgImage, in: CGRect(origin: CGPoint(x: (bounds.width - imageSize.width) * 0.5, y: (bounds.height - imageSize.height) * 0.5), size: imageSize))
+                drawImage(image, in: CGRect(origin: CGPoint(x: (bounds.width - imageSize.width) * 0.5, y: (bounds.height - imageSize.height) * 0.5), size: imageSize))
             }
         } else {
-            if let image = UIImage(bundleImageName: name), let cgImage = image.cgImage {
+            if let image = UIImage(bundleImageName: name) {
                 let imageSize: CGSize
                 if scaleFactor == 1.0 {
                     imageSize = size
                 } else {
                     imageSize = CGSize(width: image.size.width * scaleFactor, height: image.size.height * scaleFactor)
                 }
-                context.draw(cgImage, in: CGRect(origin: CGPoint(x: (bounds.width - imageSize.width) * 0.5, y: (bounds.height - imageSize.height) * 0.5), size: imageSize))
+                drawImage(image, in: CGRect(origin: CGPoint(x: (bounds.width - imageSize.width) * 0.5, y: (bounds.height - imageSize.height) * 0.5), size: imageSize))
             }
         }
     })
 }
 
 public struct PresentationResourcesSettings {
+    public static let swiftgram = renderIcon(name: "SwiftgramSettings")
+    public static let swiftgramPro = renderIcon(name: "SwiftgramPro")
     public static let editProfile = renderIcon(name: "Settings/Menu/EditProfile")
     public static let proxy = renderIcon(name: "Settings/Menu/Proxy")
     public static let savedMessages = renderIcon(name: "Settings/Menu/SavedMessages")
@@ -81,6 +93,7 @@ public struct PresentationResourcesSettings {
     public static let premiumGift = renderIcon(name: "Settings/Menu/Gift")
     public static let business = renderIcon(name: "Settings/Menu/Business", backgroundColors: [UIColor(rgb: 0xA95CE3), UIColor(rgb: 0xF16B80)])
     public static let myProfile = renderIcon(name: "Settings/Menu/Profile")
+    public static let ghostgram = renderIcon(name: "Settings/Menu/GhostgramSettings")
     public static let reactions = renderIcon(name: "Settings/Menu/Reactions")
     public static let balance = renderIcon(name: "Settings/Menu/Balance", scaleFactor: 0.97, backgroundColors: [UIColor(rgb: 0x34c759)])
     public static let affiliateProgram = renderIcon(name: "Settings/Menu/AffiliateProgram")

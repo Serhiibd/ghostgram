@@ -234,8 +234,9 @@ private final class GiftViewSheetContent: CombinedComponent {
                     
                     if self.testUpgradeAnimation {
                         if gift.giftId != 0 {
-                            self.upgradePreviewDisposable.add((context.engine.payments.starGiftUpgradePreview(giftId: gift.giftId)
-                            |> deliverOnMainQueue).start(next: { [weak self] upgradePreview in
+                            let upgradePreviewSignal = context.engine.payments.starGiftUpgradePreview(giftId: gift.giftId)
+                            |> deliverOnMainQueue
+                            self.upgradePreviewDisposable.add(upgradePreviewSignal.start(next: { [weak self] upgradePreview in
                                 guard let self, let upgradePreview else {
                                     return
                                 }
@@ -243,7 +244,7 @@ private final class GiftViewSheetContent: CombinedComponent {
                                 
                                 for attribute in upgradePreview.attributes {
                                     switch attribute {
-                                    case let .model(_, file, _):
+                                    case let .model(_, file, _, _):
                                         self.upgradePreviewDisposable.add(freeMediaFileResourceInteractiveFetched(account: self.context.account, userLocation: .other, fileReference: .standalone(media: file), resource: file.resource).start())
                                     case let .pattern(_, file, _):
                                         self.upgradePreviewDisposable.add(freeMediaFileResourceInteractiveFetched(account: self.context.account, userLocation: .other, fileReference: .standalone(media: file), resource: file.resource).start())
@@ -261,8 +262,9 @@ private final class GiftViewSheetContent: CombinedComponent {
                         peerIds.append(releasedBy)
                     }
                     if arguments.canUpgrade || arguments.upgradeStars != nil || arguments.prepaidUpgradeHash != nil {
-                        self.upgradePreviewDisposable.add((context.engine.payments.starGiftUpgradePreview(giftId: gift.id)
-                        |> deliverOnMainQueue).start(next: { [weak self] upgradePreview in
+                        let upgradePreviewSignal = context.engine.payments.starGiftUpgradePreview(giftId: gift.id)
+                        |> deliverOnMainQueue
+                        self.upgradePreviewDisposable.add(upgradePreviewSignal.start(next: { [weak self] upgradePreview in
                             guard let self, let upgradePreview else {
                                 return
                             }
@@ -270,7 +272,7 @@ private final class GiftViewSheetContent: CombinedComponent {
                             
                             for attribute in upgradePreview.attributes {
                                 switch attribute {
-                                case let .model(_, file, _):
+                                case let .model(_, file, _, _):
                                     self.upgradePreviewDisposable.add(freeMediaFileResourceInteractiveFetched(account: self.context.account, userLocation: .other, fileReference: .standalone(media: file), resource: file.resource).start())
                                 case let .pattern(_, file, _):
                                     self.upgradePreviewDisposable.add(freeMediaFileResourceInteractiveFetched(account: self.context.account, userLocation: .other, fileReference: .standalone(media: file), resource: file.resource).start())
@@ -501,7 +503,7 @@ private final class GiftViewSheetContent: CombinedComponent {
                 animationFile = gift.file
             case let .unique(gift):
                 for attribute in gift.attributes {
-                    if case let .model(_, file, _) = attribute {
+                    if case let .model(_, file, _, _) = attribute {
                         animationFile = file
                         break
                     }
@@ -718,7 +720,7 @@ private final class GiftViewSheetContent: CombinedComponent {
             let context = self.context
             let presentationData = context.sharedContext.currentPresentationData.with { $0 }
             
-            let proceed = { [weak self, weak starsContext, weak controller] in
+            let proceed: () -> Void = { [weak self, weak starsContext, weak controller] in
                 guard let self, let controller else {
                     return
                 }
@@ -745,7 +747,7 @@ private final class GiftViewSheetContent: CombinedComponent {
                         let updatedAttributes = uniqueGift.attributes.filter { $0.attributeType != .originalInfo }
                         self.subject = .profileGift(peerId, gift.withGift(.unique(uniqueGift.withAttributes(updatedAttributes))))
                     case let .message(message):
-                        if let action = message.media.first(where: { $0 is TelegramMediaAction }) as? TelegramMediaAction, case let .starGiftUnique(gift, isUpgrade, isTransferred, savedToProfile, canExportDate, transferStars, isRefunded, isPrepaidUpgrade, peerId, senderId, savedId, resaleAmount, canTransferDate, canResaleDate, _, assigned, fromOffer) = action.action, case let .unique(uniqueGift) = gift {
+                        if let action = message.media.first(where: { $0 is TelegramMediaAction }) as? TelegramMediaAction, case let .starGiftUnique(gift, isUpgrade, isTransferred, savedToProfile, canExportDate, transferStars, isRefunded, isPrepaidUpgrade, peerId, senderId, savedId, resaleAmount, canTransferDate, canResaleDate, _, assigned, fromOffer, _, _) = action.action, case let .unique(uniqueGift) = gift {
                             let updatedAttributes = uniqueGift.attributes.filter { $0.attributeType != .originalInfo }
                             let updatedMedia: [Media] = [
                                 TelegramMediaAction(
@@ -766,7 +768,9 @@ private final class GiftViewSheetContent: CombinedComponent {
                                         canResaleDate: canResaleDate,
                                         dropOriginalDetailsStars: nil,
                                         assigned: assigned,
-                                        fromOffer: fromOffer
+                                        fromOffer: fromOffer,
+                                        canCraftAt: nil,
+                                        isCrafted: false
                                     )
                                 )
                             ]
@@ -1008,7 +1012,10 @@ private final class GiftViewSheetContent: CombinedComponent {
                 |> then(
                     context.engine.payments.getUniqueStarGift(slug: gift.slug)
                     |> map { gift in
-                        return gift?.themePeerId
+                        return gift.themePeerId
+                    }
+                    |> `catch` { _ -> Signal<EnginePeer.Id?, NoError> in
+                        return .single(nil)
                     }
                 )
             )
@@ -1376,6 +1383,7 @@ private final class GiftViewSheetContent: CombinedComponent {
                 let variantsController = self.context.sharedContext.makeGiftUpgradeVariantsScreen(
                     context: self.context,
                     gift: arguments.gift,
+                    crafted: false,
                     attributes: attributes,
                     selectedAttributes: selectedAttributes,
                     focusedAttribute: attribute
@@ -1443,7 +1451,7 @@ private final class GiftViewSheetContent: CombinedComponent {
                 }
                 
                 if case let .unique(gift) = arguments.gift, let resellAmount = gift.resellAmounts?.first, resellAmount.amount.value > 0 {
-                    if arguments.reference != nil || gift.owner.peerId == context.account.peerId {
+                    if arguments.reference != nil || gift.owner?.peerId == context.account.peerId {
                         items.append(.action(ContextMenuActionItem(text: presentationData.strings.Gift_View_Context_ChangePrice, icon: { theme in
                             return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/PriceTag"), color: theme.contextMenu.primaryColor)
                         }, action: { [weak self] c, _ in
@@ -1703,7 +1711,7 @@ private final class GiftViewSheetContent: CombinedComponent {
             let giftTitle = "\(uniqueGift.title) #\(formatCollectibleNumber(uniqueGift.number, dateTimeFormat: presentationData.dateTimeFormat))"
             let recipientPeerId = self.recipientPeerId ?? self.context.account.peerId
                         
-            let action: (CurrencyAmount.Currency) -> Void = { currency in
+            let action: (CurrencyAmount.Currency) -> Void = { (currency: CurrencyAmount.Currency) in
                 guard let resellAmount = uniqueGift.resellAmounts?.first(where: { $0.currency == currency }) else {
                     guard let controller = self.getController() as? GiftViewScreen else {
                         return
@@ -1802,10 +1810,10 @@ private final class GiftViewSheetContent: CombinedComponent {
                             
                             var animationFile: TelegramMediaFile?
                             for attribute in uniqueGift.attributes {
-                                if case let .model(_, file, _) = attribute {
-                                    animationFile = file
-                                    break
-                                }
+                                            if case let .model(_, file, _, _) = attribute {
+                                                animationFile = file
+                                                break
+                                            }
                             }
                             
                             if let navigationController = controller.navigationController as? NavigationController {
@@ -3671,7 +3679,7 @@ private final class GiftViewSheetContent: CombinedComponent {
                                     if state.pendingWear {
                                         var fileId: Int64?
                                         for attribute in uniqueGift.attributes {
-                                            if case let .model(_, file, _) = attribute {
+                                            if case let .model(_, file, _, _) = attribute {
                                                 fileId = file.fileId.id
                                             }
                                             if case let .backdrop(_, _, innerColor, _, _, _, _) = attribute {
@@ -3780,6 +3788,8 @@ private final class GiftViewSheetContent: CombinedComponent {
                                     )
                                 )
                             ))
+                        case .none:
+                            break
                         }
                         
                         if let peerId = uniqueGift.hostPeerId, let peer = state.peerMap[peerId] {
@@ -4113,17 +4123,17 @@ private final class GiftViewSheetContent: CombinedComponent {
                             var otherValuesAndPercentages: [(value: String, percentage: Float)] = []
                             
                             switch attribute {
-                            case let .model(name, _, rarity):
+                            case let .model(name, _, rarity, _):
                                 id = "model"
                                 title = strings.Gift_Unique_Model
                                 value = NSAttributedString(string: name, font: tableFont, textColor: tableTextColor)
-                                percentage = Float(rarity) * 0.1
+                                percentage = Float(rarity.permilleValue) * 0.1
                                 tag = state.modelButtonTag
                                 
                                 if state.justUpgraded, let sampleAttributes = state.upgradePreview?.attributes {
                                     for sampleAttribute in sampleAttributes {
-                                        if case let .model(name, _, rarity) = sampleAttribute {
-                                            otherValuesAndPercentages.append((name, Float(rarity) * 0.1))
+                                        if case let .model(name, _, rarity, _) = sampleAttribute {
+                                            otherValuesAndPercentages.append((name, Float(rarity.permilleValue) * 0.1))
                                         }
                                     }
                                 }
@@ -4131,13 +4141,13 @@ private final class GiftViewSheetContent: CombinedComponent {
                                 id = "backdrop"
                                 title = strings.Gift_Unique_Backdrop
                                 value = NSAttributedString(string: name, font: tableFont, textColor: tableTextColor)
-                                percentage = Float(rarity) * 0.1
+                                percentage = Float(rarity.permilleValue) * 0.1
                                 tag = state.backdropButtonTag
                                 
                                 if state.justUpgraded, let sampleAttributes = state.upgradePreview?.attributes {
                                     for sampleAttribute in sampleAttributes {
                                         if case let .backdrop(name, _, _, _, _, _, rarity) = sampleAttribute {
-                                            otherValuesAndPercentages.append((name, Float(rarity) * 0.1))
+                                            otherValuesAndPercentages.append((name, Float(rarity.permilleValue) * 0.1))
                                         }
                                     }
                                 }
@@ -4145,13 +4155,13 @@ private final class GiftViewSheetContent: CombinedComponent {
                                 id = "pattern"
                                 title = strings.Gift_Unique_Symbol
                                 value = NSAttributedString(string: name, font: tableFont, textColor: tableTextColor)
-                                percentage = Float(rarity) * 0.1
+                                percentage = Float(rarity.permilleValue) * 0.1
                                 tag = state.symbolButtonTag
                                 
                                 if state.justUpgraded, let sampleAttributes = state.upgradePreview?.attributes {
                                     for sampleAttribute in sampleAttributes {
                                         if case let .pattern(name, _, rarity) = sampleAttribute {
-                                            otherValuesAndPercentages.append((name, Float(rarity) * 0.1))
+                                            otherValuesAndPercentages.append((name, Float(rarity.permilleValue) * 0.1))
                                         }
                                     }
                                 }
@@ -5500,7 +5510,7 @@ public class GiftViewScreen: ViewControllerComponentContainer {
                         
                         let fromPeerId = senderId ?? message.author?.id
                         return (message.id.peerId, fromPeerId, message.author?.debugDisplayTitle, message.author?.compactDisplayTitle, message.id, reference, message.flags.contains(.Incoming), gift, message.timestamp, convertStars, text, entities, nameHidden, savedToProfile, nil, converted, upgraded, isRefunded, canUpgrade, upgradeStars, nil, nil, nil, upgradeMessageId, nil, nil, prepaidUpgradeHash, upgradeSeparate, nil, toPeerId, number)
-                    case let .starGiftUnique(gift, isUpgrade, isTransferred, savedToProfile, canExportDate, transferStars, _, _, peerId, senderId, savedId, _, canTransferDate, canResaleDate, dropOriginalDetailsStars, _, _):
+                    case let .starGiftUnique(gift, isUpgrade, isTransferred, savedToProfile, canExportDate, transferStars, _, _, peerId, senderId, savedId, _, canTransferDate, canResaleDate, dropOriginalDetailsStars, _, _, _, _):
                         var reference: StarGiftReference
                         if let peerId, let savedId {
                             reference = .peer(peerId: peerId, id: savedId)

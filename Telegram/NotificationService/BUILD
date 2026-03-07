@@ -23,6 +23,7 @@ swift_library(
         "//submodules/PersistentStringHash:PersistentStringHash",
         "//submodules/Utils/RangeSet",
         "//submodules/Media/ConvertOpusToAAC",
+        "//Swiftgram/SGStatus:SGStatus",
     ],
     visibility = [
         "//visibility:public",

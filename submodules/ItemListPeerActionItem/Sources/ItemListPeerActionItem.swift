@@ -34,9 +34,10 @@ public class ItemListPeerActionItem: ListViewItem, ItemListItem {
     let color: ItemListPeerActionItemColor
     let noInsets: Bool
     public let sectionId: ItemListSectionId
+    public let tag: ItemListItemTag?
     public let action: (() -> Void)?
     
-    public init(presentationData: ItemListPresentationData, style: ItemListStyle = .blocks, systemStyle: ItemListSystemStyle = .legacy, icon: UIImage?, iconSignal: Signal<UIImage?, NoError>? = nil, title: String, additionalBadgeIcon: UIImage? = nil, alwaysPlain: Bool = false, hasSeparator: Bool = true, sectionId: ItemListSectionId, height: ItemListPeerActionItemHeight = .peerList, color: ItemListPeerActionItemColor = .accent, noInsets: Bool = false, editing: Bool = false, action: (() -> Void)?) {
+    public init(presentationData: ItemListPresentationData, style: ItemListStyle = .blocks, systemStyle: ItemListSystemStyle = .legacy, icon: UIImage?, iconSignal: Signal<UIImage?, NoError>? = nil, title: String, additionalBadgeIcon: UIImage? = nil, alwaysPlain: Bool = false, hasSeparator: Bool = true, sectionId: ItemListSectionId, height: ItemListPeerActionItemHeight = .peerList, color: ItemListPeerActionItemColor = .accent, noInsets: Bool = false, editing: Bool = false, tag: ItemListItemTag? = nil, action: (() -> Void)?) {
         self.presentationData = presentationData
         self.style = style
         self.systemStyle = systemStyle
@@ -51,6 +52,7 @@ public class ItemListPeerActionItem: ListViewItem, ItemListItem {
         self.noInsets = noInsets
         self.color = color
         self.sectionId = sectionId
+        self.tag = tag
         self.action = action
     }
     
@@ -116,7 +118,7 @@ public class ItemListPeerActionItem: ListViewItem, ItemListItem {
     }
 }
 
-public final class ItemListPeerActionItemNode: ListViewItemNode {
+public final class ItemListPeerActionItemNode: ListViewItemNode, ItemListItemNode {
     private let backgroundNode: ASDisplayNode
     private let topStripeNode: ASDisplayNode
     private let bottomStripeNode: ASDisplayNode
@@ -130,6 +132,10 @@ public final class ItemListPeerActionItemNode: ListViewItemNode {
     private let activateArea: AccessibilityAreaNode
     
     private var item: ItemListPeerActionItem?
+    
+    public var tag: ItemListItemTag? {
+        return self.item?.tag
+    }
     
     private let iconDisposable = MetaDisposable()
     
