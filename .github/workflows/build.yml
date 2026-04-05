@@ -8,10 +8,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # This tells GitHub to look at the original source for missing pieces
           repository: ichmagmaus111/ghostgram
-          submodules: recursive
           fetch-depth: 0
+          # We don't do submodules here yet because they are broken
+
+      - name: Fix Broken Submodule Links
+        run: |
+          # Replace the broken ichmagmaus111 links with official Telegram ones
+          sed -i '' 's|https://github.com/ichmagmaus111/tgcalls.git|https://github.com/TelegramMessenger/tgcalls.git|g' .gitmodules
+          sed -i '' 's|https://github.com/ichmagmaus111/rlottie.git|https://github.com/TelegramMessenger/rlottie.git|g' .gitmodules
+          
+          # Initialize submodules with the new links
+          git submodule update --init --recursive
 
       - name: Install Dependencies
         run: brew install cmake ninja
