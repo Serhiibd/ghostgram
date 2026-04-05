@@ -10,27 +10,22 @@ jobs:
         with:
           repository: ichmagmaus111/ghostgram
           fetch-depth: 0
-          lfs: true # Downloads large files (images/graphics)
+          lfs: true
 
-      - name: Fix Submodules and Clone
+      - name: Fix Submodules
         run: |
-          # Swap broken links to official Telegram ones
           sed -i '' 's|https://github.com/ichmagmaus111/tgcalls.git|https://github.com/TelegramMessenger/tgcalls.git|g' .gitmodules
           sed -i '' 's|https://github.com/ichmagmaus111/rlottie.git|https://github.com/TelegramMessenger/rlottie.git|g' .gitmodules
-          
-          # Force update submodules
           git submodule sync
           git submodule update --init --recursive --force
 
       - name: Install Dependencies
         run: brew install cmake ninja
 
-      - name: Setup Configuration
+      - name: Setup Config
         run: |
-          # Creating a dummy config so the build doesn't crash
-          if [ ! -f Telegram/Config/config.json ]; then
-            cp Telegram/Config/config.json.example Telegram/Config/config.json
-          fi
+          mkdir -p Telegram/Config
+          cp Telegram/Config/config.json.example Telegram/Config/config.json || echo "{}" > Telegram/Config/config.json
 
       - name: Generate Project
         run: |
@@ -43,25 +38,29 @@ jobs:
             --bundleId "com.build.ghostgram" \
             generateProject
 
-      - name: Build App (This takes a long time)
+      - name: Build App
         run: |
+          # Adding 'ARCHS=arm64' to ensure it builds for iPhone
           xcodebuild -project Telegram.xcodeproj \
             -scheme Telegram \
             -configuration Release \
             -sdk iphoneos \
-            -allowProvisioningUpdates \
-            build CODE_SIGNING_ALLOWED=NO
+            -arch arm64 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            ENTITLEMENTS_REQUIRED=NO \
+            clean build
 
-      - name: Create Unsigned IPA
+      - name: Create IPA
         run: |
           mkdir -p Payload
-          # Find the app file and copy it
-          APP_PATH=$(find . -name "Telegram.app" -type d | head -n 1)
-          cp -r "$APP_PATH" Payload/
+          # This command finds the actual .app file even if the folder structure changes
+          APP_DIR=$(find . -name "*.app" -type d | grep "Release-iphoneos" | head -n 1)
+          cp -r "$APP_DIR" Payload/
           zip -r Ghostgram.ipa Payload
 
-      - name: Upload Result
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Ghostgram-Unsigned-IPA
+          name: Ghostgram-IPA
           path: Ghostgram.ipa
