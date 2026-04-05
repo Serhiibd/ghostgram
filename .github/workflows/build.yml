@@ -9,15 +9,23 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ichmagmaus111/ghostgram
-          fetch-depth: 0
+          fetch-depth: 1 # Faster download
           lfs: true
 
-      - name: Fix Submodules
+      - name: Force Fix Submodules
         run: |
-          sed -i '' 's|https://github.com/ichmagmaus111/tgcalls.git|https://github.com/TelegramMessenger/tgcalls.git|g' .gitmodules
-          sed -i '' 's|https://github.com/ichmagmaus111/rlottie.git|https://github.com/TelegramMessenger/rlottie.git|g' .gitmodules
+          # 1. Initialize submodules without cloning them yet
+          git submodule init
+          
+          # 2. Manually override the broken URLs in the git config
+          git config submodule."submodules/TgVoipWebrtc/tgcalls".url "https://github.com/TelegramMessenger/tgcalls.git"
+          git config submodule."submodules/rlottie/rlottie".url "https://github.com/TelegramMessenger/rlottie.git"
+          
+          # 3. Sync the new URLs to the internal git state
           git submodule sync
-          git submodule update --init --recursive --force
+          
+          # 4. Now update and clone (this should now pull from TelegramMessenger)
+          git submodule update --init --recursive --force --depth 1
 
       - name: Install Dependencies
         run: brew install cmake ninja
@@ -40,7 +48,6 @@ jobs:
 
       - name: Build App
         run: |
-          # Adding 'ARCHS=arm64' to ensure it builds for iPhone
           xcodebuild -project Telegram.xcodeproj \
             -scheme Telegram \
             -configuration Release \
@@ -54,8 +61,9 @@ jobs:
       - name: Create IPA
         run: |
           mkdir -p Payload
-          # This command finds the actual .app file even if the folder structure changes
+          # Find the built .app folder
           APP_DIR=$(find . -name "*.app" -type d | grep "Release-iphoneos" | head -n 1)
+          if [ -z "$APP_DIR" ]; then echo "App directory not found!"; exit 1; fi
           cp -r "$APP_DIR" Payload/
           zip -r Ghostgram.ipa Payload
 
