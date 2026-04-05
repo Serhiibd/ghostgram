@@ -10,25 +10,29 @@ jobs:
         with:
           repository: ichmagmaus111/ghostgram
           fetch-depth: 0
-          # We don't do submodules here yet because they are broken
+          lfs: true # Downloads large files (images/graphics)
 
-      - name: Fix Broken Submodule Links
+      - name: Fix Submodules and Clone
         run: |
-          # Replace the broken ichmagmaus111 links with official Telegram ones
+          # Swap broken links to official Telegram ones
           sed -i '' 's|https://github.com/ichmagmaus111/tgcalls.git|https://github.com/TelegramMessenger/tgcalls.git|g' .gitmodules
           sed -i '' 's|https://github.com/ichmagmaus111/rlottie.git|https://github.com/TelegramMessenger/rlottie.git|g' .gitmodules
           
-          # Initialize submodules with the new links
-          git submodule update --init --recursive
+          # Force update submodules
+          git submodule sync
+          git submodule update --init --recursive --force
 
       - name: Install Dependencies
         run: brew install cmake ninja
 
       - name: Setup Configuration
         run: |
-          cp Telegram/Config/config.json.example Telegram/Config/config.json
+          # Creating a dummy config so the build doesn't crash
+          if [ ! -f Telegram/Config/config.json ]; then
+            cp Telegram/Config/config.json.example Telegram/Config/config.json
+          fi
 
-      - name: Generate Xcode Project
+      - name: Generate Project
         run: |
           python3 build-system/Make/Make.py \
             --project Telegram \
@@ -39,18 +43,21 @@ jobs:
             --bundleId "com.build.ghostgram" \
             generateProject
 
-      - name: Build App
+      - name: Build App (This takes a long time)
         run: |
           xcodebuild -project Telegram.xcodeproj \
             -scheme Telegram \
             -configuration Release \
             -sdk iphoneos \
+            -allowProvisioningUpdates \
             build CODE_SIGNING_ALLOWED=NO
 
       - name: Create Unsigned IPA
         run: |
           mkdir -p Payload
-          cp -r build/Release-iphoneos/Telegram.app Payload/
+          # Find the app file and copy it
+          APP_PATH=$(find . -name "Telegram.app" -type d | head -n 1)
+          cp -r "$APP_PATH" Payload/
           zip -r Ghostgram.ipa Payload
 
       - name: Upload Result
