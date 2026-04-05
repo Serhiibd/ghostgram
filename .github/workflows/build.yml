@@ -8,6 +8,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          # This tells GitHub to look at the original source for missing pieces
+          repository: ichmagmaus111/ghostgram
           submodules: recursive
           fetch-depth: 0
 
@@ -17,8 +19,6 @@ jobs:
       - name: Setup Configuration
         run: |
           cp Telegram/Config/config.json.example Telegram/Config/config.json
-          # Note: This uses default/example keys. For full functionality, 
-          # you'd replace these with your own from my.telegram.org.
 
       - name: Generate Xcode Project
         run: |
@@ -28,7 +28,7 @@ jobs:
             --buildNumber 1 \
             --bundleVersion 1.0 \
             --developerTeam "TEAMID123" \
-            --bundleId "com.serhiibd.ghostgram" \
+            --bundleId "com.build.ghostgram" \
             generateProject
 
       - name: Build App
